@@ -96,6 +96,7 @@ pip install -r requirements.txt
 ollama pull llama3.2:1b          # y deja `ollama serve` corriendo
 
 n8n start                        # http://localhost:5678 (una vez instalado: npm i -g n8n)
+                                 # e importa n8n/superalexa-alertas.json y actívalo
 
 copy .env.example .env           # una vez; pon ahí tu n8n, número de alertas, claves
 python server.py

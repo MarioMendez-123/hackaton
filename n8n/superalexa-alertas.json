@@ -1,0 +1,49 @@
+{
+  "name": "Super Alexa - Alertas",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "superalexa-alert",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook1",
+      "name": "Webhook alerta",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "superalexa-alert"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || {};\nconsole.log('[Super Alexa -> n8n] Alerta recibida:', JSON.stringify(body));\nreturn [{ json: { recibido: true, situacion: body.situation || null, severidad: body.severity || null, mensaje: body.message || null, hora: new Date().toISOString() } }];"
+      },
+      "id": "code1",
+      "name": "Registrar alerta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook alerta": {
+      "main": [
+        [
+          {
+            "node": "Registrar alerta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}
