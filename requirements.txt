@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+# solo para test_lumina.py / test_backend.py:
+pytest
+httpx
+
+# visión (backend/vision.py): cámara + YOLO + MediaPipe
+opencv-python
+ultralytics
+mediapipe
+
+# integraciones reales (backend/integrations.py, backend/calendar_provider.py)
+twilio
+icalendar
+recurring-ical-events

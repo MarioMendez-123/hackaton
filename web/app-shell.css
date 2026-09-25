@@ -1,0 +1,768 @@
+/*
+  app-shell — base del documento, las dos vistas y los componentes que ambas
+  comparten (botones, campos, chips, interruptor, avisos flotantes). Todo sale
+  de tokens.css; aquí no hay colores sueltos.
+*/
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  /* Cada control tiene su propio :active; el destello gris del sistema sobra. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden; /* cada vista maneja su propio scroll */
+  background: var(--night);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: var(--t-body);
+  line-height: 1.5;
+  letter-spacing: 0.01em; /* texto claro sobre oscuro se lee más pesado: se abre un poco */
+  font-kerning: normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+/* Los componentes fijan su propio display; sin esto, `hidden` no oculta. */
+[hidden] {
+  display: none !important;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+svg {
+  flex-shrink: 0;
+}
+
+/* ---------- las dos vistas ---------- */
+
+.app-shell {
+  position: relative;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* Sin View Transitions (o con movimiento reducido) queda un fundido corto.
+   Con ellas, este fundido se apaga (.has-vt) y el navegador hace el
+   crossfade + la cara de Lumina viajando hasta el orbe de la consola. */
+.view {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity var(--d-fast) var(--ease-out),
+    visibility 0s linear var(--d-fast);
+}
+
+.view--active {
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity var(--d-fast) var(--ease-out),
+    visibility 0s;
+}
+
+.has-vt .view {
+  transition: none;
+}
+
+/* La vista oculta no se ve: sus animaciones en bucle (respiración de la
+   cara, barrido de cámara, halos) se pausan en vez de gastar batería. */
+.view:not(.view--active) *,
+.view:not(.view--active) *::before,
+.view:not(.view--active) *::after {
+  animation-play-state: paused !important;
+}
+
+/* Elemento compartido: el que esté en la vista activa lleva el nombre. Solo
+   uno a la vez, o la transición se cancela por nombre duplicado. */
+.view--active .face-stage,
+.view--active .mini-lumina {
+  view-transition-name: lumina;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--d-base);
+  animation-timing-function: var(--ease-out);
+}
+
+::view-transition-group(lumina) {
+  animation-duration: var(--d-view);
+  animation-timing-function: var(--ease-in-out);
+}
+
+::view-transition-old(lumina),
+::view-transition-new(lumina) {
+  height: 100%;
+  object-fit: contain;
+  animation-duration: var(--d-view);
+  animation-timing-function: var(--ease-in-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
+/* ---------- accesibilidad ---------- */
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: fixed;
+  top: var(--s-3);
+  left: var(--s-3);
+  z-index: calc(var(--z-boot) + 1);
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--r-sm);
+  background: var(--moon);
+  color: var(--night);
+  font-weight: 600;
+  text-decoration: none;
+  transform: translateY(-200%);
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--moon);
+  outline-offset: 2px;
+}
+
+/* ---------- iconos (trazo, una sola familia visual) ---------- */
+
+.icon {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------- botones ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  min-height: 44px;
+  padding: 0 var(--s-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+  touch-action: manipulation;
+  transition:
+    background-color var(--d-fast) ease,
+    border-color var(--d-fast) ease,
+    color var(--d-fast) ease,
+    transform var(--d-press) var(--ease-out);
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn[disabled],
+.btn[aria-busy="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn--primary {
+  border-color: transparent;
+  background: var(--moon);
+  color: var(--night);
+  font-weight: 600;
+}
+
+.btn--quiet {
+  border-color: transparent;
+  color: var(--ink-2);
+}
+
+.btn--urgent {
+  border-color: transparent;
+  background: var(--ember);
+  color: var(--night-deep);
+  font-weight: 600;
+}
+
+.btn--sm {
+  min-height: 36px;
+  padding: 0 var(--s-3);
+  font-size: var(--t-small);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .btn:hover {
+    border-color: var(--moon);
+  }
+  .btn--primary:hover {
+    background: var(--moon-strong);
+  }
+  .btn--quiet:hover {
+    border-color: transparent;
+    color: var(--ink);
+    background: var(--line);
+  }
+  .btn--urgent:hover {
+    background: var(--ember-text);
+  }
+}
+
+@media (pointer: coarse) {
+  .btn--sm {
+    min-height: 44px;
+  }
+}
+
+/* ---------- campos ---------- */
+
+.field {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px var(--s-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  background: var(--night-deep);
+  color: var(--ink);
+  transition: border-color var(--d-fast) ease;
+}
+
+.field::placeholder {
+  color: var(--ink-3);
+}
+
+.field:focus-visible {
+  border-color: var(--moon);
+}
+
+textarea.field {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+select.field {
+  appearance: none;
+  padding-right: var(--s-8);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink-2) 50%),
+    linear-gradient(135deg, var(--ink-2) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) 50%,
+    calc(100% - 13px) 50%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: var(--s-2);
+  color: var(--ink-2);
+  font-size: var(--t-small);
+  font-weight: 500;
+}
+
+/* ---------- chips ---------- */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--dusk-raised);
+  color: var(--ink-2);
+  font-size: var(--t-small);
+  touch-action: manipulation;
+  transition:
+    color var(--d-fast) ease,
+    border-color var(--d-fast) ease,
+    transform var(--d-press) var(--ease-out);
+}
+
+.chip:active {
+  transform: scale(0.97);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .chip:hover {
+    color: var(--ink);
+    border-color: var(--line-strong);
+  }
+}
+
+@media (pointer: coarse) {
+  .chip {
+    min-height: 44px;
+  }
+}
+
+/* ---------- interruptor (modo protección) ---------- */
+
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 44px;
+  padding: 0 var(--s-2) 0 var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--ink-2);
+  font-size: var(--t-small);
+  font-weight: 500;
+  touch-action: manipulation;
+  transition:
+    border-color var(--d-fast) ease,
+    color var(--d-fast) ease,
+    transform var(--d-press) var(--ease-out);
+}
+
+.switch:active {
+  transform: scale(0.97);
+}
+
+.switch-track {
+  position: relative;
+  width: 40px;
+  height: 24px;
+  border-radius: var(--r-pill);
+  background: var(--dusk-raised);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  transition: background-color var(--d-fast) ease;
+}
+
+.switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--ink-2);
+  transition:
+    transform var(--d-fast) var(--ease-out),
+    background-color var(--d-fast) ease;
+}
+
+.switch[aria-checked="true"] {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.switch[aria-checked="true"] .switch-track {
+  background: var(--moon-strong);
+}
+
+.switch[aria-checked="true"] .switch-thumb {
+  background: var(--night);
+  transform: translateX(16px);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .switch:hover {
+    border-color: var(--line-strong);
+    color: var(--ink);
+  }
+}
+
+/* ---------- punto de estado (siempre acompañado de texto) ---------- */
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  flex-shrink: 0;
+  transition: background-color var(--d-base) ease;
+}
+
+.dot--ok {
+  background: var(--mint);
+}
+.dot--calm {
+  background: var(--moon);
+}
+.dot--warning {
+  background: var(--amber);
+}
+.dot--critical {
+  background: var(--ember);
+}
+
+/* ---------- avisos flotantes ---------- */
+
+.toaster {
+  position: fixed;
+  right: max(var(--s-4), env(safe-area-inset-right));
+  bottom: max(var(--s-4), env(safe-area-inset-bottom));
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--s-2);
+  width: min(380px, calc(100vw - var(--s-8)));
+  pointer-events: none;
+}
+
+/* Material flotante: translúcido sobre lo que haya detrás, con sombra
+   profunda porque flota — la única superficie translúcida junto con los
+   controles que flotan sobre video y cara. */
+.toast {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: var(--s-3);
+  padding: 14px var(--s-2) 14px var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: oklch(29% 0.044 268 / 0.86);
+  backdrop-filter: blur(16px) saturate(140%);
+  box-shadow: 0 16px 40px -16px oklch(10% 0.03 268 / 0.7);
+  pointer-events: auto;
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 400ms ease,
+    transform 400ms ease;
+}
+
+@starting-style {
+  .toast {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+}
+
+/* Sale por donde entró, y más rápido que la entrada. */
+.toast.is-leaving {
+  opacity: 0;
+  transform: translateY(100%);
+  transition-duration: 300ms;
+}
+
+.toast .icon {
+  margin-top: 1px;
+  color: var(--moon);
+}
+
+.toast[data-tone="ok"] .icon {
+  color: var(--mint);
+}
+.toast[data-tone="warning"] .icon {
+  color: var(--amber);
+}
+.toast[data-tone="critical"] .icon {
+  color: var(--ember);
+}
+
+.toast-title {
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.toast-body {
+  margin-top: 2px;
+  color: var(--ink-2);
+  font-size: var(--t-small);
+}
+
+.toast-action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  margin-top: var(--s-2);
+  color: var(--moon);
+  font-size: var(--t-small);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  touch-action: manipulation;
+}
+
+.toast-close {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin-top: -6px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-3);
+  transition:
+    color var(--d-fast) ease,
+    transform var(--d-press) var(--ease-out);
+}
+
+.toast-close:active {
+  transform: scale(0.94);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .toast-close:hover {
+    color: var(--ink);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast,
+  .toast.is-leaving {
+    transform: none;
+    transition: opacity var(--d-fast) ease;
+  }
+  @starting-style {
+    .toast {
+      transform: none;
+    }
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .toast {
+    background: var(--dusk-raised);
+    backdrop-filter: none;
+  }
+}
+
+/* ---------- "¿Estás bien?" tras una posible caída ----------
+   Cubre todo (incluso la pantalla de espera): puede que quien lo vea esté en
+   el suelo, lejos, sin sus lentes. Letra enorme, dos botones grandes, calor
+   de brasa. Es un momento raro y crítico: aquí sí vale una entrada visible. */
+
+.fall-prompt {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-boot) + 10);
+  display: grid;
+  place-items: center;
+  padding: var(--s-6);
+  background:
+    radial-gradient(ellipse 70% 60% at 50% 40%, oklch(70% 0.175 30 / 0.22), transparent 70%),
+    oklch(14% 0.03 268 / 0.86);
+  backdrop-filter: blur(14px);
+  opacity: 1;
+  transition: opacity var(--d-base) var(--ease-out);
+}
+
+@starting-style {
+  .fall-prompt {
+    opacity: 0;
+  }
+}
+
+.fall-card {
+  display: grid;
+  justify-items: center;
+  gap: var(--s-4);
+  width: min(560px, 100%);
+  text-align: center;
+  transform: scale(1);
+  transition: transform var(--d-view) var(--ease-out);
+}
+
+@starting-style {
+  .fall-card {
+    transform: scale(0.94);
+  }
+}
+
+.fall-timer {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 132px;
+  height: 132px;
+}
+
+.fall-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.fall-ring-track {
+  fill: none;
+  stroke: oklch(70% 0.175 30 / 0.2);
+  stroke-width: 6;
+}
+
+/* El anillo se vacía con el tiempo que queda (dashboard.js escribe el
+   stroke-dashoffset cada cuarto de segundo): un reloj que se entiende sin leer. */
+.fall-ring-progress {
+  fill: none;
+  stroke: var(--ember);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 250ms linear;
+}
+
+.fall-count {
+  font-family: var(--font-voice);
+  font-size: 3rem;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.fall-title {
+  font-family: var(--font-voice);
+  font-size: var(--t-display);
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+
+.fall-body {
+  max-width: 34ch;
+  color: var(--ink-2);
+  font-size: var(--t-lead);
+  text-wrap: pretty;
+}
+
+.fall-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-3);
+  width: 100%;
+  margin-top: var(--s-2);
+}
+
+.fall-btn {
+  min-height: 72px;
+  border-radius: var(--r-md);
+  font-size: 1.25rem;
+}
+
+.fall-hint {
+  color: var(--ink-3);
+  font-size: var(--t-small);
+}
+
+/* Ya se avisó (nadie contestó, o pidió ayuda): sin reloj, un solo botón
+   para cerrar cuando todo esté bien. */
+.fall-prompt:not([data-status="asking"]) .fall-timer,
+.fall-prompt:not([data-status="asking"]) #fallHelpBtn,
+.fall-prompt:not([data-status="asking"]) .fall-hint {
+  display: none;
+}
+
+.fall-prompt:not([data-status="asking"]) .fall-actions {
+  grid-template-columns: 1fr;
+}
+
+/* Pulso lento del calor mientras corre el tiempo: se nota de reojo. */
+.fall-prompt[data-status="asking"] {
+  animation: fall-heat 2.4s ease-in-out infinite;
+}
+
+@keyframes fall-heat {
+  0%,
+  100% {
+    background-color: oklch(14% 0.03 268 / 0.86);
+  }
+  50% {
+    background-color: oklch(20% 0.05 30 / 0.88);
+  }
+}
+
+@media (max-width: 480px) {
+  .fall-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fall-prompt[data-status="asking"] {
+    animation: none;
+  }
+  .fall-card {
+    transition: none;
+  }
+  @starting-style {
+    .fall-card {
+      transform: none;
+    }
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .fall-prompt {
+    background: var(--night-deep);
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --line: oklch(86% 0.065 268 / 0.35);
+    --line-strong: oklch(86% 0.065 268 / 0.55);
+  }
+}

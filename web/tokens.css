@@ -1,0 +1,87 @@
+/*
+  Super Alexa — tokens de diseño. Única fuente de color, tipo, espacio y
+  movimiento para las dos vistas (la cara de Lumina y la consola de la casa).
+
+  Concepto: "la casa de noche". La pantalla vive en una cocina o un pasillo
+  como una luz de noche. La calma es fría (índigo nocturno, luz de luna); el
+  peligro es calor (ámbar, brasa) — el riesgo principal del producto es
+  literalmente una estufa. Colores en OKLCH (perceptualmente uniformes); el
+  hex de cada uno va comentado. Contraste verificado contra WCAG AA: el peor
+  par de texto normal usado es 5.25:1 (ink-3 sobre dusk).
+*/
+
+:root {
+  /* ---- superficies: neutros teñidos al tono 268 ---- */
+  --night: oklch(20.5% 0.04 268); /* #0f1629 fondo */
+  --night-deep: oklch(17% 0.036 268); /* #090e1f pozos: cámara, cara */
+  --dusk: oklch(24.5% 0.042 268); /* #181f35 superficies */
+  --dusk-raised: oklch(29% 0.044 268); /* #222a41 elevado, campos */
+
+  /* ---- texto ---- */
+  --ink: oklch(95% 0.012 268); /* #ebeef7 */
+  --ink-2: oklch(79% 0.03 268); /* #b2bacf */
+  --ink-3: oklch(66% 0.04 268); /* #8892ab — solo sobre night/dusk */
+
+  /* ---- acento: luz de luna (calma, interactivo) ---- */
+  --moon: oklch(86% 0.065 268); /* #bfd0fd */
+  --moon-strong: oklch(78% 0.1 268); /* #9cb5f8 */
+
+  /* ---- calor: severidad (y solo severidad) ---- */
+  --amber: oklch(82% 0.135 72); /* #fab558 alerta */
+  --ember: oklch(70% 0.175 30); /* #f86c59 crítico */
+  --ember-text: oklch(76% 0.14 30); /* #fd8c7b texto crítico chico */
+
+  /* ---- confirmación (encontrado, conectado) — con cuentagotas ---- */
+  --mint: oklch(84% 0.09 165); /* #91debc */
+
+  /* ---- líneas: luz de luna translúcida, nunca un gris plano ---- */
+  --line: oklch(86% 0.065 268 / 0.12);
+  --line-strong: oklch(86% 0.065 268 / 0.22);
+
+  /* ---- tipo: Lumina habla en serif, la casa en grotesca ---- */
+  --font-voice: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --font-ui: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+
+  --t-micro: 0.75rem; /* 12 — OSD de la cámara */
+  --t-small: 0.875rem; /* 14 — metadatos, etiquetas */
+  --t-body: 1rem; /* 16 */
+  --t-lead: 1.125rem; /* 18 */
+  --t-title: 1.25rem; /* 20 — encabezados de sección */
+  --t-headline: clamp(1.5rem, 1.15rem + 1.2vw, 2.125rem); /* resumen de la casa */
+  --t-caption: clamp(1.5rem, 1.1rem + 1.6vw, 2.375rem); /* subtítulo de Lumina */
+  --t-display: clamp(2.75rem, 1.9rem + 3.2vw, 4.25rem); /* reloj de la cara */
+
+  /* ---- espacio: escala de 4pt ---- */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-12: 48px;
+  --s-16: 64px;
+
+  /* ---- radios por jerarquía (no uno para todo) ---- */
+  --r-sm: 10px; /* botones, campos */
+  --r-md: 16px; /* cámara, avisos, toasts */
+  --r-pill: 999px; /* chips, interruptores, estado */
+
+  /* ---- movimiento: tres curvas, ninguna más ---- */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1); /* entrar Y salir */
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); /* moverse en pantalla */
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --d-press: 160ms;
+  --d-fast: 200ms;
+  --d-base: 250ms;
+  --d-view: 380ms;
+
+  /* ---- capas ---- */
+  --z-view: 1;
+  --z-sticky: 10;
+  --z-toast: 100;
+  --z-boot: 1000;
+
+  color-scheme: dark;
+}

@@ -1,0 +1,1271 @@
+/*
+  La casa — la consola que ve lo que Lumina ve. Dos "instrumentos" con
+  superficie propia (la cámara y el plano de la casa); todo lo demás es texto
+  directo sobre la noche, separado por aire y no por tarjetas idénticas. El
+  único color fuerte de esta vista es el calor, y solo aparece cuando algo
+  necesita atención.
+*/
+
+/* La barra fija no debe tapar lo que recibe el foco al tabular. */
+#view-dashboard {
+  scroll-padding-top: 88px;
+}
+
+.console {
+  width: min(100%, 1440px);
+  margin-inline: auto;
+  padding: 0 clamp(var(--s-4), 3vw, var(--s-10)) var(--s-16);
+}
+
+/* ---------- barra superior (flota sobre el contenido) ---------- */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  margin-inline: calc(clamp(var(--s-4), 3vw, var(--s-10)) * -1);
+  padding: var(--s-3) clamp(var(--s-4), 3vw, var(--s-10));
+  background: oklch(20.5% 0.04 268 / 0.78);
+  backdrop-filter: blur(18px) saturate(140%);
+  /* Borde de desplazamiento en vez de una línea dura: solo se nota cuando
+     hay contenido pasando por debajo. */
+  box-shadow: 0 1px 0 var(--line);
+}
+
+.back-to-lumina {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 44px;
+  padding: 0 var(--s-4) 0 0;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  text-decoration: none;
+  touch-action: manipulation;
+  transition:
+    color var(--d-fast) ease,
+    transform var(--d-press) var(--ease-out);
+}
+
+.back-to-lumina:active {
+  transform: scale(0.97);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .back-to-lumina:hover {
+    color: var(--ink);
+  }
+}
+
+/* Lumina en miniatura: el mismo rostro, en un orbe. Es el destino de la
+   transición compartida desde la cara grande (ver app-shell.css). */
+.mini-lumina {
+  --mini-accent: var(--moon);
+  width: 44px;
+  height: 44px;
+  overflow: visible;
+}
+
+html[data-severity="warning"] .mini-lumina {
+  --mini-accent: var(--amber);
+}
+html[data-severity="critical"] .mini-lumina {
+  --mini-accent: var(--ember);
+}
+
+.mini-halo {
+  fill: var(--dusk-raised);
+  stroke: var(--line-strong);
+  stroke-width: 1;
+}
+
+.mini-eye,
+.mini-mouth {
+  fill: none;
+  stroke: var(--mini-accent);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  transition: stroke var(--d-base) ease;
+}
+
+.mini-eye {
+  fill: var(--mini-accent);
+  stroke: none;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.mini-mouth {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* Escucha: el halo respira; habla: la boca se mueve. Sutil a propósito,
+   está en la esquina de la vista y no debe robar atención. */
+html[data-voice="listening"] .mini-halo {
+  animation: mini-breathe 2.4s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+html[data-voice="speaking"] .mini-mouth {
+  animation: mini-talk 280ms ease-in-out infinite alternate;
+}
+
+html[data-voice="processing"] .mini-eye {
+  animation: mini-think 1.2s ease-in-out infinite;
+}
+
+@keyframes mini-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+@keyframes mini-talk {
+  from {
+    transform: scaleY(1);
+  }
+  to {
+    transform: scaleY(2.2);
+  }
+}
+
+@keyframes mini-think {
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  50% {
+    transform: scaleY(0.35);
+  }
+}
+
+.topbar-spacer {
+  flex: 1;
+}
+
+.clock {
+  color: var(--ink-2);
+  font-size: 0.9375rem;
+  min-width: 5ch;
+  text-align: right;
+}
+
+/* ---------- resumen: la casa dicha en una frase ---------- */
+
+.hero {
+  display: grid;
+  gap: var(--s-2);
+  max-width: 60ch;
+  padding: var(--s-10) 0 var(--s-8);
+}
+
+.summary-headline {
+  font-family: var(--font-voice);
+  font-size: var(--t-headline);
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+.summary-detail {
+  color: var(--ink-2);
+  font-size: var(--t-lead);
+  text-wrap: pretty;
+}
+
+/* ---------- avisos: aparecen empujando el contenido, no encima ---------- */
+
+/* Cerrado sigue en el DOM: visibility lo saca también del lector de
+   pantalla y del orden de tabulación, no solo de la vista. */
+.alert-slot {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    grid-template-rows var(--d-base) var(--ease-out),
+    opacity var(--d-base) var(--ease-out),
+    margin-bottom var(--d-base) var(--ease-out),
+    visibility 0s linear var(--d-base);
+}
+
+.alert-slot.is-visible {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  visibility: visible;
+  margin-bottom: var(--s-4);
+  transition:
+    grid-template-rows var(--d-base) var(--ease-out),
+    opacity var(--d-base) var(--ease-out),
+    margin-bottom var(--d-base) var(--ease-out),
+    visibility 0s;
+}
+
+.alert-slot > * {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.alert {
+  --heat: var(--amber);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--s-2) var(--s-4);
+  padding: var(--s-5) var(--s-6);
+  border: 1px solid color-mix(in oklch, var(--heat) 38%, transparent);
+  border-radius: var(--r-md);
+  background:
+    radial-gradient(ellipse 60% 120% at 0% 0%, color-mix(in oklch, var(--heat) 16%, transparent), transparent 70%),
+    var(--dusk);
+}
+
+.alert[data-tone="critical"] {
+  --heat: var(--ember);
+}
+
+.alert-icon {
+  width: 24px;
+  height: 24px;
+  margin-top: 2px;
+  color: var(--heat);
+}
+
+.alert-title {
+  font-size: var(--t-title);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.alert[data-tone="critical"] .alert-title {
+  color: var(--ember-text);
+}
+
+.alert-body {
+  color: var(--ink-2);
+}
+
+.alert-actions {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}
+
+/* ---------- rejilla principal ---------- */
+
+/* Dos columnas que fluyen por separado (la cámara es alta, el plano no):
+   así no quedan huecos. En angosto, .console-col desaparece (display:
+   contents) y los paneles se reordenan por grid-area. */
+.console-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: var(--s-12) var(--s-10);
+  padding-top: var(--s-4);
+}
+
+.console-col {
+  display: grid;
+  align-content: start;
+  gap: var(--s-12);
+  min-width: 0;
+}
+
+.panel {
+  display: grid;
+  align-content: start;
+  gap: var(--s-4);
+  min-width: 0;
+  border-radius: var(--r-md);
+  outline: 2px solid transparent;
+  outline-offset: 12px;
+  transition: outline-color 600ms ease;
+}
+
+/* Cuando la voz lleva a un panel ("abre mi agenda"): un contorno de luz de
+   luna que se enciende rápido y se apaga despacio, para que el ojo lo ubique. */
+.panel.is-spotlight {
+  outline-color: var(--moon);
+  transition-duration: var(--d-fast);
+}
+
+.panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  min-height: 44px;
+}
+
+.panel-title {
+  margin-right: auto;
+  font-size: var(--t-title);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.panel-sub {
+  margin-top: var(--s-2);
+  font-size: var(--t-body);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.panel-note {
+  color: var(--ink-3);
+  font-size: var(--t-small);
+}
+
+.empty {
+  color: var(--ink-3);
+  font-size: 0.9375rem;
+}
+
+/* ---------- cámara ---------- */
+
+.camera {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: var(--r-md);
+  background: var(--night-deep);
+  box-shadow: inset 0 0 0 1px var(--line);
+  container-type: size;
+  transition: box-shadow var(--d-base) ease;
+}
+
+/* Al encender, el video aparece con un fundido en vez de sustituir de golpe
+   al estado vacío. */
+.camera-feed {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity var(--d-base) var(--ease-out);
+}
+
+@starting-style {
+  .camera-feed {
+    opacity: 0;
+  }
+}
+
+.camera-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--s-3);
+  padding: var(--s-6);
+  color: var(--ink-2);
+  text-align: center;
+}
+
+.camera-empty .icon {
+  width: 32px;
+  height: 32px;
+  color: var(--ink-3);
+}
+
+.camera-empty p {
+  max-width: 30ch;
+}
+
+/* Rótulos sobre el video: material translúcido oscuro, legible sobre
+   cualquier cosa que esté pasando detrás. */
+.osd {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  max-width: calc(100% - var(--s-6));
+  padding: 6px 12px;
+  border-radius: var(--r-pill);
+  background: oklch(14% 0.03 268 / 0.72);
+  backdrop-filter: blur(10px);
+  color: var(--ink);
+  font-size: var(--t-micro);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  transition: opacity var(--d-fast) var(--ease-out);
+}
+
+.osd[hidden] {
+  display: none;
+}
+
+.osd--live {
+  top: var(--s-3);
+  left: var(--s-3);
+}
+
+.osd--search {
+  top: var(--s-3);
+  right: var(--s-3);
+}
+
+.osd--sees {
+  bottom: var(--s-3);
+  left: var(--s-3);
+}
+
+.osd .dot--live {
+  background: var(--ember);
+  animation: live-blink 2s ease-in-out infinite;
+}
+
+@keyframes live-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* Modo búsqueda: esquinas de encuadre + una línea que barre la imagen. */
+.reticle {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border: 0 solid var(--moon);
+  opacity: 0;
+  transition: opacity var(--d-base) var(--ease-out);
+  pointer-events: none;
+}
+
+.reticle--tl {
+  top: var(--s-3);
+  left: var(--s-3);
+  border-top-width: 2px;
+  border-left-width: 2px;
+  border-top-left-radius: 6px;
+}
+.reticle--tr {
+  top: var(--s-3);
+  right: var(--s-3);
+  border-top-width: 2px;
+  border-right-width: 2px;
+  border-top-right-radius: 6px;
+}
+.reticle--bl {
+  bottom: var(--s-3);
+  left: var(--s-3);
+  border-bottom-width: 2px;
+  border-left-width: 2px;
+  border-bottom-left-radius: 6px;
+}
+.reticle--br {
+  bottom: var(--s-3);
+  right: var(--s-3);
+  border-bottom-width: 2px;
+  border-right-width: 2px;
+  border-bottom-right-radius: 6px;
+}
+
+.camera-sweep {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 22%;
+  background: linear-gradient(to bottom, transparent, oklch(86% 0.065 268 / 0.16) 85%, oklch(86% 0.065 268 / 0.5));
+  opacity: 0;
+  transform: translateY(-100%);
+  pointer-events: none;
+}
+
+.camera.is-scanning .reticle {
+  opacity: 0.9;
+}
+
+.camera.is-scanning .camera-sweep {
+  opacity: 1;
+  animation: camera-sweep 2.6s linear infinite;
+}
+
+@keyframes camera-sweep {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(100cqh);
+  }
+}
+
+/* Encontrado: el encuadre se vuelve menta un momento. */
+.camera.is-found {
+  box-shadow:
+    inset 0 0 0 2px var(--mint),
+    0 0 0 4px oklch(84% 0.09 165 / 0.18);
+}
+
+/* Momento raro y buscado: las esquinas se cierran un poco sobre la imagen,
+   como un encuadre que se enfoca. */
+.reticle {
+  transition:
+    opacity var(--d-base) var(--ease-out),
+    transform var(--d-base) var(--ease-out),
+    border-color var(--d-base) ease;
+}
+
+.camera.is-found .reticle {
+  border-color: var(--mint);
+  opacity: 1;
+}
+
+.camera.is-found .reticle--tl {
+  transform: translate(10px, 10px);
+}
+.camera.is-found .reticle--tr {
+  transform: translate(-10px, 10px);
+}
+.camera.is-found .reticle--bl {
+  transform: translate(10px, -10px);
+}
+.camera.is-found .reticle--br {
+  transform: translate(-10px, -10px);
+}
+
+/* ---------- búsqueda ---------- */
+
+.search-row {
+  display: flex;
+  gap: var(--s-2);
+}
+
+.search-row .field {
+  flex: 1;
+  min-width: 0;
+}
+
+.object-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.search-status {
+  min-height: 1.5em;
+  color: var(--ink-2);
+  font-size: var(--t-small);
+}
+
+.search-status[data-tone="ok"] {
+  color: var(--mint);
+}
+
+.search-status[data-tone="warning"] {
+  color: var(--amber);
+}
+
+/* ---------- plano de la casa ---------- */
+
+.plan-wrap {
+  padding: var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--dusk);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.plan {
+  display: block;
+  width: 100%;
+  max-width: 560px;
+  height: auto;
+  margin-inline: auto;
+  overflow: visible;
+}
+
+.plan-floor {
+  fill: var(--night);
+}
+
+.plan-walls path {
+  fill: none;
+  stroke: var(--ink-3);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Se dibuja sola la primera vez que se abre la consola: dashboard.js quita
+   .is-pending cuando la vista se muestra. Pasa una vez por visita. */
+.plan-walls path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 900ms var(--ease-out);
+}
+
+.plan.is-pending .plan-walls path {
+  stroke-dashoffset: 1;
+  transition: none;
+}
+
+.plan-label {
+  fill: var(--ink-3);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+/* La puerta gira sobre su bisagra (56, 244). Es un objeto físico moviéndose
+   en pantalla: ease-in-out, y un poco más largo que un control de UI. */
+.plan-door {
+  stroke: var(--ink);
+  stroke-width: 4;
+  stroke-linecap: round;
+  transform-box: view-box;
+  transform-origin: 56px 244px;
+  transition:
+    transform var(--d-view) var(--ease-in-out),
+    stroke var(--d-base) ease;
+}
+
+.plan-door-arc {
+  fill: none;
+  stroke: var(--ink-3);
+  stroke-width: 1.25;
+  stroke-dasharray: 3 4;
+  opacity: 0;
+  transition: opacity var(--d-base) ease;
+}
+
+.plan[data-door="open"] .plan-door {
+  stroke: var(--amber);
+  transform: rotate(-80deg);
+}
+
+.plan[data-door="open"] .plan-door-arc {
+  opacity: 1;
+}
+
+.plan[data-door="unknown"] .plan-door {
+  stroke: var(--ink-3);
+  stroke-dasharray: 4 5;
+}
+
+.plan-person {
+  fill: var(--moon);
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scale(0.6);
+  transition:
+    opacity var(--d-base) var(--ease-out),
+    transform var(--d-base) var(--ease-out);
+}
+
+.plan-person-halo {
+  fill: none;
+  stroke: var(--moon);
+  stroke-width: 1.5;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.plan[data-home-person="true"] .plan-person--home,
+.plan[data-kitchen-person="true"] .plan-person--kitchen {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.plan[data-home-person="true"] .plan-person-halo--home,
+.plan[data-kitchen-person="true"] .plan-person-halo--kitchen {
+  animation: person-halo 2.8s ease-out infinite;
+}
+
+@keyframes person-halo {
+  0% {
+    opacity: 0.6;
+    transform: scale(0.6);
+  }
+  80%,
+  100% {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+
+/* La cocina se calienta: ámbar en alerta, brasa en crítico. */
+.plan-heat {
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+
+.plan[data-kitchen="warning"] .plan-heat {
+  opacity: 0.55;
+}
+
+.plan[data-kitchen="critical"] .plan-heat {
+  opacity: 0.75;
+  animation: heat-pulse 2.4s ease-in-out infinite;
+}
+
+.plan-heat-warm {
+  stop-color: var(--amber);
+}
+
+.plan[data-kitchen="critical"] .plan-heat-warm {
+  stop-color: var(--ember);
+}
+
+@keyframes heat-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+.plan-stove {
+  fill: var(--night-deep);
+  stroke: var(--ink-3);
+  stroke-width: 1.25;
+}
+
+.plan-burner {
+  fill: none;
+  stroke: var(--ink-3);
+  stroke-width: 1.5;
+  transition: stroke var(--d-base) ease;
+}
+
+.plan[data-stove="on"] .plan-burner {
+  stroke: var(--amber);
+}
+
+.plan-fov {
+  fill: var(--moon);
+  opacity: 0;
+  transition: opacity var(--d-base) ease;
+}
+
+.plan[data-camera="on"] .plan-fov {
+  opacity: 0.07;
+}
+
+.plan-camera {
+  fill: var(--ink-3);
+  transition: fill var(--d-base) ease;
+}
+
+.plan[data-camera="on"] .plan-camera {
+  fill: var(--moon);
+}
+
+.plan-shield {
+  fill: none;
+  stroke: var(--moon);
+  stroke-width: 1.75;
+  stroke-linejoin: round;
+  opacity: 0;
+  transition: opacity var(--d-base) ease;
+}
+
+.plan[data-armed="true"] .plan-shield {
+  opacity: 1;
+}
+
+/* ---------- lecturas ---------- */
+
+.vitals {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-5) var(--s-4);
+  margin: 0;
+}
+
+.vital {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.vital dt {
+  color: var(--ink-3);
+  font-size: var(--t-small);
+}
+
+.vital dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--t-lead);
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.vital dd[data-tone="unknown"] {
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+.vital dd[data-tone="warning"] {
+  color: var(--amber);
+}
+
+.vital dd[data-tone="critical"] {
+  color: var(--ember-text);
+}
+
+.vital dd[data-tone="calm"] {
+  color: var(--moon);
+}
+
+/* ---------- lo que pasó ---------- */
+
+.timeline {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tl-item {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--line);
+  transition:
+    opacity var(--d-base) var(--ease-out),
+    transform var(--d-base) var(--ease-out);
+}
+
+@starting-style {
+  .tl-item {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.tl-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--dusk);
+  color: var(--ink-2);
+}
+
+.tl-icon .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.tl-item[data-tone="warning"] .tl-icon {
+  color: var(--amber);
+}
+.tl-item[data-tone="critical"] .tl-icon {
+  color: var(--ember);
+}
+.tl-item[data-tone="ok"] .tl-icon {
+  color: var(--mint);
+}
+
+.tl-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.tl-time {
+  color: var(--ink-3);
+  font-size: var(--t-small);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---------- hoy: agenda + recordatorios ---------- */
+
+.agenda {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agenda-item {
+  display: grid;
+  grid-template-columns: 5.5ch minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--s-4);
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.agenda-time {
+  color: var(--moon);
+  font-weight: 500;
+}
+
+.agenda-item.is-past {
+  color: var(--ink-3);
+}
+
+.agenda-item.is-past .agenda-time {
+  color: var(--ink-3);
+}
+
+.reminders {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Al completarse, la fila se cierra (alto vía grid rows) y se desvanece. */
+.reminder {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition:
+    grid-template-rows var(--d-base) var(--ease-out),
+    opacity var(--d-fast) var(--ease-out);
+}
+
+@starting-style {
+  .reminder {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+}
+
+.reminder.is-done {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+.reminder-inner {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 0;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+}
+
+.reminder-check {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  margin-left: -10px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-3);
+  touch-action: manipulation;
+}
+
+.reminder-check-box {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--ink-3);
+  border-radius: 7px;
+  transition:
+    background-color var(--d-fast) ease,
+    border-color var(--d-fast) ease,
+    transform var(--d-press) var(--ease-out);
+}
+
+.reminder-check .icon {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2.5;
+  color: var(--night);
+  opacity: 0;
+  transition: opacity var(--d-fast) ease;
+}
+
+.reminder-check:active .reminder-check-box {
+  transform: scale(0.9);
+}
+
+.reminder.is-done .reminder-check-box {
+  border-color: var(--mint);
+  background: var(--mint);
+}
+
+.reminder.is-done .reminder-check .icon {
+  opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .reminder-check:hover .reminder-check-box {
+    border-color: var(--moon);
+  }
+}
+
+.reminder-text {
+  flex: 1;
+  min-width: 0;
+  padding: var(--s-3) 0;
+  overflow-wrap: anywhere;
+}
+
+.reminder-tag {
+  flex-shrink: 0;
+  padding: 2px 10px;
+  border-radius: var(--r-pill);
+  background: var(--dusk-raised);
+  color: var(--ink-2);
+  font-size: var(--t-micro);
+}
+
+.event-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--s-2);
+}
+
+.reminder-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: var(--s-2);
+}
+
+.reminder-form select.field {
+  width: auto;
+}
+
+/* ---------- revisar un mensaje ---------- */
+
+.fraud-form {
+  display: grid;
+  gap: var(--s-3);
+}
+
+.fraud-form .btn {
+  justify-self: start;
+}
+
+.fraud-result {
+  display: grid;
+  gap: var(--s-3);
+  padding: var(--s-5);
+  border-radius: var(--r-md);
+  background: var(--dusk);
+  transition:
+    opacity var(--d-base) var(--ease-out),
+    transform var(--d-base) var(--ease-out);
+}
+
+@starting-style {
+  .fraud-result {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.fraud-result[hidden] {
+  display: none;
+}
+
+.risk-level {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-weight: 600;
+}
+
+.fraud-result[data-level="alto"] .risk-level {
+  color: var(--ember-text);
+}
+.fraud-result[data-level="medio"] .risk-level {
+  color: var(--amber);
+}
+.fraud-result[data-level="bajo"] .risk-level {
+  color: var(--mint);
+}
+
+.signal-list {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0;
+  padding-left: 1.2em;
+  color: var(--ink);
+}
+
+.signal-list li::marker {
+  color: var(--ink-3);
+}
+
+.fraud-note {
+  color: var(--ink-2);
+  font-size: var(--t-small);
+}
+
+/* ---------- canales de aviso ---------- */
+
+.channels {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.channel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.channel-name {
+  font-weight: 500;
+}
+
+.channel-desc {
+  color: var(--ink-3);
+  font-size: var(--t-small);
+}
+
+.channel-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--ink-3);
+  font-size: var(--t-small);
+  white-space: nowrap;
+}
+
+.channel-status[data-on="true"] {
+  color: var(--ink);
+}
+
+/* ---------- anchos ---------- */
+
+@media (max-width: 1024px) {
+  .console-col {
+    display: contents;
+  }
+  .console-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "camera"
+      "house"
+      "today"
+      "log"
+      "fraud"
+      "channels";
+    gap: var(--s-10);
+  }
+  .panel--camera {
+    grid-area: camera;
+  }
+  .panel--house {
+    grid-area: house;
+  }
+  .panel--log {
+    grid-area: log;
+  }
+  .panel--today {
+    grid-area: today;
+  }
+  .panel--fraud {
+    grid-area: fraud;
+  }
+  .panel--channels {
+    grid-area: channels;
+  }
+}
+
+@media (max-width: 560px) {
+  .vitals {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .reminder-form {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .reminder-form .field:first-child {
+    grid-column: 1 / -1;
+  }
+  .back-to-lumina-label {
+    display: none;
+  }
+  .alert {
+    padding: var(--s-4);
+  }
+  .alert-actions {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ---------- movimiento reducido ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-voice] .mini-halo,
+  html[data-voice] .mini-mouth,
+  html[data-voice] .mini-eye,
+  .osd .dot--live,
+  .plan-person-halo,
+  .plan[data-kitchen="critical"] .plan-heat {
+    animation: none !important;
+  }
+  .camera.is-scanning .camera-sweep {
+    animation: none;
+    opacity: 0;
+  }
+  .camera.is-found .reticle {
+    transform: none;
+  }
+  .plan-door {
+    transition: stroke var(--d-base) ease;
+  }
+  .plan-walls path {
+    transition: none;
+  }
+  .plan.is-pending .plan-walls path {
+    stroke-dashoffset: 0;
+  }
+  .tl-item,
+  .fraud-result {
+    transition: opacity var(--d-base) ease;
+  }
+  @starting-style {
+    .tl-item,
+    .fraud-result {
+      transform: none;
+    }
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .topbar {
+    background: var(--night);
+    backdrop-filter: none;
+  }
+  .osd {
+    background: var(--night-deep);
+    backdrop-filter: none;
+  }
+}

@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="es" data-view="lumina" data-severity="normal" data-voice="idle">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f1629" />
+    <meta name="description" content="Lumina, el agente de tu casa: ve, escucha, recuerda y te avisa." />
+    <title>Super Alexa</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300..600&family=Schibsted+Grotesk:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="tokens.css?v=3" />
+    <link rel="stylesheet" href="app-shell.css?v=9" />
+    <link rel="stylesheet" href="lumina.css?v=3" />
+    <link rel="stylesheet" href="dashboard.css?v=9" />
+  </head>
+  <body>
+    <!-- Iconos: una sola familia de trazo (24×24, 1.75). Se usan con
+         <svg class="icon"><use href="#i-…"></use></svg>. -->
+    <svg xmlns="http://www.w3.org/2000/svg" hidden>
+      <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" /></symbol>
+      <symbol id="i-flame" viewBox="0 0 24 24">
+        <path d="M12 3c1 3 5 5.5 5 10a5 5 0 0 1-10 0c0-2.2 1-3.6 2.2-4.8.3 1.6 1.2 2.6 2.3 2.8C11 8.5 11 5.5 12 3z" />
+      </symbol>
+      <symbol id="i-door" viewBox="0 0 24 24">
+        <path d="M6 21V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17" /><path d="M4 21h16" /><path d="M14.5 12h.01" />
+      </symbol>
+      <symbol id="i-person" viewBox="0 0 24 24">
+        <circle cx="12" cy="7.5" r="3.5" /><path d="M5 21c0-3.9 3.1-7 7-7s7 3.1 7 7" />
+      </symbol>
+      <symbol id="i-thermo" viewBox="0 0 24 24"><path d="M14 14.5V5a2 2 0 0 0-4 0v9.5a4 4 0 1 0 4 0z" /></symbol>
+      <symbol id="i-alert" viewBox="0 0 24 24">
+        <path d="M12 4 2.8 19.5h18.4z" /><path d="M12 10v4" /><path d="M12 17h.01" />
+      </symbol>
+      <symbol id="i-fall" viewBox="0 0 24 24">
+        <circle cx="17.5" cy="6" r="2.5" /><path d="M3 20h18" /><path d="M5 16.5l4.5-4 3.5 2 2.5-4.5" />
+      </symbol>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></symbol>
+      <symbol id="i-camera" viewBox="0 0 24 24">
+        <rect x="3" y="6" width="13" height="12" rx="2" /><path d="M16 10.5l5-3v9l-5-3" />
+      </symbol>
+      <symbol id="i-camera-off" viewBox="0 0 24 24">
+        <rect x="3" y="6" width="13" height="12" rx="2" /><path d="M16 10.5l5-3v9l-5-3" /><path d="M3 3l18 18" />
+      </symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24">
+        <path d="M12 3l7 3v5.5c0 4.3-3 7.8-7 9.5-4-1.7-7-5.2-7-9.5V6z" />
+      </symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" /></symbol>
+      <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></symbol>
+      <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></symbol>
+      <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7" /><path d="M6 9.5V20h12V9.5" /></symbol>
+      <symbol id="i-bell" viewBox="0 0 24 24">
+        <path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z" /><path d="M10 20.5a2 2 0 0 0 4 0" />
+      </symbol>
+    </svg>
+
+    <a class="skip-link" href="#main">Saltar al contenido</a>
+
+    <main class="app-shell" id="main">
+      <!-- ============ Vista 1: Lumina ============ -->
+      <section class="view view--active" id="view-lumina" aria-label="Lumina">
+        <canvas id="field" aria-hidden="true"></canvas>
+        <div class="veil" aria-hidden="true"></div>
+
+        <div class="face-screen" id="face-screen">
+          <header class="ambient-top">
+            <div>
+              <time class="ambient-time" id="ambientTime">--:--</time>
+              <p class="ambient-date" id="ambientDate"></p>
+            </div>
+            <p class="voice-state">
+              <span class="voice-status-dot" id="voice-status-dot" aria-hidden="true"></span>
+              <span id="voiceStateText">Dormida</span>
+            </p>
+          </header>
+
+          <!-- face-stage (parallax) > face-breathe (respiración) > face-svg
+               (pulso/ladeo): tres transforms distintos, tres nodos, para que no
+               se pisen. -->
+          <div class="face-center">
+            <div class="face-ambient" aria-hidden="true"></div>
+            <div class="face-stage" id="face-stage">
+              <div class="face-breathe">
+                <svg
+                  class="face-svg"
+                  id="face-svg"
+                  viewBox="0 0 1000 600"
+                  preserveAspectRatio="xMidYMid meet"
+                  aria-hidden="true"
+                >
+                  <ellipse class="face-glow" id="listening-ring" cx="500" cy="300" rx="260" ry="170"></ellipse>
+                  <ellipse class="face-glow face-glow--ripple" id="listening-ring-2" cx="500" cy="300" rx="260" ry="170"></ellipse>
+                  <ellipse class="face-glow face-glow--ripple" id="listening-ring-3" cx="500" cy="300" rx="260" ry="170"></ellipse>
+                  <path class="face-brow" id="brow-left"></path>
+                  <path class="face-brow" id="brow-right"></path>
+                  <path class="face-eye" id="eye-left"></path>
+                  <path class="face-eye" id="eye-right"></path>
+                  <circle class="face-pupil" id="pupil-left" r="16"></circle>
+                  <circle class="face-pupil" id="pupil-right" r="16"></circle>
+                  <path class="face-mouth" id="face-mouth"></path>
+                  <g class="face-dots" id="thinking-dots">
+                    <circle cx="440" cy="120" r="15"></circle>
+                    <circle cx="500" cy="92" r="15"></circle>
+                    <circle cx="560" cy="120" r="15"></circle>
+                  </g>
+                </svg>
+              </div>
+            </div>
+
+            <!-- --bar-i alimenta el retraso en cadena de "pensando". -->
+            <div class="waveform waveform--idle" id="waveform" aria-hidden="true">
+              <span class="waveform-bar" style="--bar-i: 0"></span>
+              <span class="waveform-bar" style="--bar-i: 1"></span>
+              <span class="waveform-bar" style="--bar-i: 2"></span>
+              <span class="waveform-bar" style="--bar-i: 3"></span>
+              <span class="waveform-bar" style="--bar-i: 4"></span>
+              <span class="waveform-bar" style="--bar-i: 5"></span>
+              <span class="waveform-bar" style="--bar-i: 6"></span>
+              <span class="waveform-bar" style="--bar-i: 7"></span>
+              <span class="waveform-bar" style="--bar-i: 8"></span>
+              <span class="waveform-bar" style="--bar-i: 9"></span>
+              <span class="waveform-bar" style="--bar-i: 10"></span>
+              <span class="waveform-bar" style="--bar-i: 11"></span>
+            </div>
+          </div>
+
+          <footer class="ambient-bottom">
+            <div class="captions">
+              <p class="caption caption--user is-faded" id="captionUser"></p>
+              <p class="caption caption--lumina is-faded" id="captionLumina"></p>
+            </div>
+            <div class="ambient-actions">
+              <a class="house-chip" id="houseChip" href="#dashboard" data-switch-view="dashboard">
+                <span class="dot dot--calm" id="houseChipDot" aria-hidden="true"></span>
+                <span class="house-chip-text">
+                  <span class="house-chip-headline" id="houseChipHeadline">La casa</span>
+                  <span class="house-chip-detail" id="houseChipDetail">Revisando…</span>
+                </span>
+                <svg class="icon" aria-hidden="true"><use href="#i-chevron"></use></svg>
+              </a>
+              <p class="hint" id="hint" aria-hidden="true">Di «Lumina, ¿cómo está la casa?»</p>
+            </div>
+          </footer>
+
+          <p class="visually-hidden" id="status-indicator" aria-live="polite"></p>
+        </div>
+
+        <!-- Pantalla de espera: se despierta diciendo "Lumina" o tocando. -->
+        <div class="boot-screen" id="boot-screen">
+          <button type="button" class="boot-hidden-btn" id="boot-hidden-btn">
+            <span class="boot-hint">Di «Lumina» o toca la pantalla</span>
+          </button>
+        </div>
+        <div class="boot-flash" id="boot-flash" aria-hidden="true"></div>
+      </section>
+
+      <!-- ============ Vista 2: la casa ============ -->
+      <section class="view" id="view-dashboard" aria-labelledby="summaryHeadline" inert>
+        <div class="console">
+          <header class="topbar">
+            <a class="back-to-lumina" href="#lumina" data-switch-view="lumina" aria-label="Volver con Lumina">
+              <svg class="mini-lumina" viewBox="0 0 64 64" aria-hidden="true">
+                <circle class="mini-halo" cx="32" cy="32" r="30"></circle>
+                <rect class="mini-eye" x="15" y="24" width="12" height="7" rx="3.5"></rect>
+                <rect class="mini-eye" x="37" y="24" width="12" height="7" rx="3.5"></rect>
+                <path class="mini-mouth" d="M22 41 Q32 47 42 41"></path>
+              </svg>
+              <span class="back-to-lumina-label" translate="no">Lumina</span>
+            </a>
+            <span class="topbar-spacer"></span>
+            <button type="button" class="switch" id="protectionSwitch" role="switch" aria-checked="false">
+              <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+              <span>Protección</span>
+            </button>
+            <time class="clock" id="clock">--:--</time>
+          </header>
+
+          <div class="hero">
+            <h1 class="summary-headline" id="summaryHeadline" tabindex="-1">La casa</h1>
+            <p class="summary-detail" id="summaryDetail">Revisando…</p>
+          </div>
+
+          <div class="alert-slot" id="riskSlot">
+            <div>
+              <div class="alert" id="riskAlert" data-tone="warning">
+                <svg class="icon alert-icon" aria-hidden="true"><use id="riskIcon" href="#i-alert"></use></svg>
+                <div>
+                  <h2 class="alert-title" id="riskTitle"></h2>
+                  <p class="alert-body" id="riskBody"></p>
+                </div>
+                <div class="alert-actions">
+                  <button type="button" class="btn btn--urgent" id="escalateBtn">Avisar a mi contacto</button>
+                  <button type="button" class="btn" id="disarmFromAlertBtn" hidden>Desactivar protección</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="console-grid">
+            <div class="console-col">
+              <!-- Cámara -->
+              <section class="panel panel--camera" aria-labelledby="cameraTitle">
+                <div class="panel-head">
+                  <h2 class="panel-title" id="cameraTitle">Cámara</h2>
+                  <button type="button" class="btn btn--quiet btn--sm" id="calibrateDoorBtn" disabled>Calibrar puerta</button>
+                  <button type="button" class="btn btn--sm" id="cameraToggleBtn">Encender</button>
+                </div>
+
+                <div class="camera" id="cameraFrame">
+                  <img class="camera-feed" id="cameraFeed" alt="Video en vivo de la cámara de la casa" width="640" height="480" hidden />
+                  <div class="camera-empty" id="cameraPlaceholder">
+                    <svg class="icon" aria-hidden="true"><use href="#i-camera-off"></use></svg>
+                    <p>La cámara está apagada. Enciéndela para vigilar la puerta, la cocina y buscar cosas.</p>
+                    <button type="button" class="btn btn--primary" id="cameraEmptyBtn">Encender cámara</button>
+                  </div>
+                  <span class="osd osd--live" id="osdLive" hidden><span class="dot dot--live" aria-hidden="true"></span>En vivo</span>
+                  <span class="osd osd--search" id="osdSearch" hidden></span>
+                  <span class="osd osd--sees" id="osdSees" hidden></span>
+                  <span class="reticle reticle--tl" aria-hidden="true"></span>
+                  <span class="reticle reticle--tr" aria-hidden="true"></span>
+                  <span class="reticle reticle--bl" aria-hidden="true"></span>
+                  <span class="reticle reticle--br" aria-hidden="true"></span>
+                  <span class="camera-sweep" aria-hidden="true"></span>
+                </div>
+
+                <form class="search" id="searchForm">
+                  <label class="field-label" for="searchInput">Buscar un objeto</label>
+                  <div class="search-row">
+                    <input
+                      class="field"
+                      id="searchInput"
+                      name="object"
+                      type="text"
+                      placeholder="celular, mochila, taza…"
+                      autocomplete="off"
+                      spellcheck="false"
+                      enterkeyhint="search"
+                    />
+                    <button type="submit" class="btn btn--primary" id="searchBtn">Buscar</button>
+                    <button type="button" class="btn" id="cancelSearchBtn" hidden>Cancelar</button>
+                  </div>
+                </form>
+                <ul class="object-chips" id="objectChips" aria-label="Objetos que reconozco"></ul>
+                <p class="search-status" id="searchStatus" role="status"></p>
+              </section>
+
+              <!-- Lo que pasó -->
+              <section class="panel panel--log" aria-labelledby="logTitle">
+                <div class="panel-head">
+                  <h2 class="panel-title" id="logTitle">Lo que pasó</h2>
+                </div>
+                <ol class="timeline" id="timeline"></ol>
+                <p class="empty" id="timelineEmpty">Aquí aparece lo que Lumina ve y oye en la casa.</p>
+              </section>
+
+              <!-- Revisar un mensaje -->
+              <section class="panel panel--fraud" aria-labelledby="fraudTitle">
+                <div class="panel-head">
+                  <h2 class="panel-title" id="fraudTitle">Revisar un mensaje</h2>
+                </div>
+                <p class="panel-note">
+                  ¿Te llegó un mensaje que te apura o te pide dinero? Pégalo aquí y te digo qué señales de engaño tiene.
+                </p>
+                <form class="fraud-form" id="fraudForm">
+                  <label class="visually-hidden" for="fraudInput">Mensaje a revisar</label>
+                  <textarea
+                    class="field"
+                    id="fraudInput"
+                    name="message"
+                    rows="4"
+                    placeholder="Ej. «Soy del banco, dame el código que te llegó…»"
+                    required
+                  ></textarea>
+                  <button type="submit" class="btn btn--primary">Revisar mensaje</button>
+                </form>
+                <div class="fraud-result" id="fraudResult" aria-live="polite" hidden>
+                  <p class="risk-level">
+                    <svg class="icon" aria-hidden="true"><use href="#i-shield"></use></svg>
+                    <span id="fraudLevel"></span>
+                  </p>
+                  <ul class="signal-list" id="fraudSignals"></ul>
+                  <p class="fraud-note" id="fraudNote"></p>
+                </div>
+              </section>
+            </div>
+
+            <div class="console-col">
+              <!-- La casa -->
+              <section class="panel panel--house" aria-labelledby="houseTitle">
+                <div class="panel-head">
+                  <h2 class="panel-title" id="houseTitle">La casa</h2>
+                </div>
+                <div class="plan-wrap">
+                  <svg
+                    class="plan is-pending"
+                    id="housePlan"
+                    viewBox="0 0 400 260"
+                    role="img"
+                    aria-labelledby="planTitle"
+                    data-door="unknown"
+                    data-kitchen="none"
+                    data-stove="unknown"
+                    data-camera="off"
+                    data-armed="false"
+                    data-home-person="false"
+                    data-kitchen-person="false"
+                  >
+                    <title id="planTitle">Plano de la casa</title>
+                    <defs>
+                      <radialGradient id="heatGradient">
+                        <stop offset="0" class="plan-heat-warm" stop-opacity="0.9"></stop>
+                        <stop offset="1" class="plan-heat-warm" stop-opacity="0"></stop>
+                      </radialGradient>
+                      <clipPath id="kitchenClip"><rect x="216" y="16" width="168" height="114"></rect></clipPath>
+                    </defs>
+
+                    <rect class="plan-floor" x="16" y="16" width="368" height="228" rx="4"></rect>
+                    <ellipse class="plan-heat" cx="310" cy="60" rx="110" ry="80" fill="url(#heatGradient)" clip-path="url(#kitchenClip)"></ellipse>
+                    <path class="plan-fov" d="M204 24 L36 120 L132 236 Z"></path>
+
+                    <g class="plan-walls">
+                      <path pathLength="1" d="M56 244 H16 V16 H384 V244 H104"></path>
+                      <path pathLength="1" d="M216 16 V96"></path>
+                      <path pathLength="1" d="M216 150 V244"></path>
+                      <path pathLength="1" d="M216 130 H300"></path>
+                      <path pathLength="1" d="M340 130 H384"></path>
+                    </g>
+
+                    <rect class="plan-stove" x="326" y="28" width="44" height="30" rx="4"></rect>
+                    <circle class="plan-burner" cx="338" cy="37" r="4.5"></circle>
+                    <circle class="plan-burner" cx="358" cy="37" r="4.5"></circle>
+                    <circle class="plan-burner" cx="338" cy="49" r="4.5"></circle>
+                    <circle class="plan-burner" cx="358" cy="49" r="4.5"></circle>
+
+                    <path class="plan-door-arc" d="M104 244 A48 48 0 0 0 64.33 196.73"></path>
+                    <line class="plan-door" x1="56" y1="244" x2="104" y2="244"></line>
+
+                    <circle class="plan-camera" cx="204" cy="24" r="5"></circle>
+                    <path class="plan-shield" d="M178 214 l9 3.6 v6.3 c0 5.4 -3.6 9 -9 10.8 c-5.4 -1.8 -9 -5.4 -9 -10.8 v-6.3 z"></path>
+
+                    <circle class="plan-person-halo plan-person-halo--home" cx="132" cy="120" r="12"></circle>
+                    <circle class="plan-person plan-person--home" cx="132" cy="120" r="6"></circle>
+                    <circle class="plan-person-halo plan-person-halo--kitchen" cx="262" cy="86" r="12"></circle>
+                    <circle class="plan-person plan-person--kitchen" cx="262" cy="86" r="6"></circle>
+
+                    <text class="plan-label" x="32" y="40">Sala</text>
+                    <text class="plan-label" x="232" y="40">Cocina</text>
+                    <text class="plan-label" x="232" y="170">Recámara</text>
+                    <text class="plan-label" x="114" y="236">Entrada</text>
+                  </svg>
+                </div>
+
+                <dl class="vitals">
+                  <div class="vital"><dt>Puerta</dt><dd id="vDoor" data-tone="unknown">Sin verificar</dd></div>
+                  <div class="vital"><dt>Personas</dt><dd id="vPeople" data-tone="unknown">Sin verificar</dd></div>
+                  <div class="vital"><dt>Estufa</dt><dd id="vStove" data-tone="unknown">Sin verificar</dd></div>
+                  <div class="vital"><dt>Temperatura</dt><dd id="vTemp" data-tone="unknown">Sin lectura</dd></div>
+                  <div class="vital"><dt>Protección</dt><dd id="vArmed">Desactivada</dd></div>
+                  <div class="vital"><dt>Contacto</dt><dd id="vContact" data-tone="unknown">Sin configurar</dd></div>
+                </dl>
+              </section>
+
+              <!-- Hoy -->
+              <section class="panel panel--today" aria-labelledby="todayTitle">
+                <div class="panel-head">
+                  <h2 class="panel-title" id="todayTitle">Hoy</h2>
+                  <span class="panel-note" id="todayDate"></span>
+                  <!-- También lo abre la voz ("Lumina, abre mi calendario"): lumina.js
+                       toma de aquí la URL y el nombre de la pestaña, para reusarla. -->
+                  <a
+                    class="btn btn--quiet btn--sm"
+                    id="openCalendarLink"
+                    href="https://calendar.google.com/calendar/r/agenda"
+                    target="google-calendar"
+                    rel="noopener"
+                    >Abrir Google Calendar</a
+                  >
+                </div>
+                <ul class="agenda" id="agendaList"></ul>
+                <p class="empty" id="agendaEmpty">Leyendo tu calendario…</p>
+
+                <form class="event-form" id="eventForm">
+                  <label class="visually-hidden" for="eventInput">Nuevo evento en Google Calendar</label>
+                  <input
+                    class="field"
+                    id="eventInput"
+                    name="event"
+                    type="text"
+                    placeholder="Dentista mañana a las 5…"
+                    autocomplete="off"
+                    maxlength="160"
+                    required
+                  />
+                  <button type="submit" class="btn">Agendar</button>
+                </form>
+                <p class="search-status" id="eventStatus" role="status"></p>
+
+                <h3 class="panel-sub">Recordatorios</h3>
+                <ul class="reminders" id="reminderList"></ul>
+                <p class="empty" id="reminderEmpty">Sin pendientes. Escríbelo aquí o di «Lumina, recuérdame…».</p>
+                <form class="reminder-form" id="reminderForm">
+                  <label class="visually-hidden" for="reminderInput">Nuevo recordatorio</label>
+                  <input
+                    class="field"
+                    id="reminderInput"
+                    name="reminder"
+                    type="text"
+                    placeholder="Sacar la basura…"
+                    autocomplete="off"
+                    maxlength="140"
+                    required
+                  />
+                  <label class="visually-hidden" for="reminderTrigger">Cuándo recordártelo</label>
+                  <select class="field" id="reminderTrigger" name="trigger">
+                    <option value="any">Cuando sea</option>
+                    <option value="leave">Al salir</option>
+                    <option value="arrive">Al llegar</option>
+                  </select>
+                  <button type="submit" class="btn">Agregar</button>
+                </form>
+              </section>
+
+              <!-- Cómo te aviso -->
+              <section class="panel panel--channels" aria-labelledby="channelsTitle">
+                <div class="panel-head">
+                  <h2 class="panel-title" id="channelsTitle">Cómo te aviso</h2>
+                </div>
+                <ul class="channels" id="channelList"></ul>
+              </section>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- "¿Estás bien?" tras una posible caída: cubre la cara y la consola, con
+         cuenta regresiva. Si nadie contesta, el servidor avisa solo al contacto
+         (ver check_fall_escalation en backend/api.py). Lo maneja dashboard.js. -->
+    <div
+      class="fall-prompt"
+      id="fallPrompt"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="fallTitle"
+      aria-describedby="fallBody"
+      data-status="asking"
+      hidden
+    >
+      <div class="fall-card">
+        <div class="fall-timer" aria-hidden="true">
+          <svg class="fall-ring" viewBox="0 0 120 120">
+            <circle class="fall-ring-track" cx="60" cy="60" r="54"></circle>
+            <circle class="fall-ring-progress" id="fallRing" cx="60" cy="60" r="54" pathLength="1"></circle>
+          </svg>
+          <span class="fall-count" id="fallCount">30</span>
+        </div>
+        <h2 class="fall-title" id="fallTitle">¿Estás bien?</h2>
+        <p class="fall-body" id="fallBody">Vi algo que parece una caída.</p>
+        <div class="fall-actions">
+          <button type="button" class="btn btn--primary fall-btn" id="fallOkBtn">Estoy bien</button>
+          <button type="button" class="btn btn--urgent fall-btn" id="fallHelpBtn">Necesito ayuda</button>
+        </div>
+        <p class="fall-hint">También puedes decirlo: «estoy bien» o «necesito ayuda».</p>
+      </div>
+    </div>
+
+    <div class="toaster" id="toaster" role="region" aria-label="Avisos" aria-live="polite"></div>
+
+    <script src="lumina-field.js?v=3"></script>
+    <script src="app-shell.js?v=9"></script>
+    <script src="voice-commands.js?v=10"></script>
+    <script src="lumina.js?v=10"></script>
+    <script src="dashboard.js?v=11"></script>
+  </body>
+</html>

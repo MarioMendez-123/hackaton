@@ -1,0 +1,750 @@
+/*
+  Lumina — la cara y su capa ambiental. Los colores salen de tokens.css:
+  lumina.js solo conoce --accent / --positive / --warn / --text-muted (ver
+  ACCENT_VAR), así que aquí se mapean a la paleta de la casa y el motor de
+  expresiones no se entera del cambio.
+
+  La cara NO tiene contorno de "cabeza" a propósito: con uno se sentía como un
+  ícono de app; sin él, ojos y boca ocupan el viewport y se lee como presencia.
+  Se quitaron las scanlines y la cuadrícula CRT: bajaban la legibilidad de los
+  subtítulos y eran el cliché "terminal hacker", no una casa.
+*/
+
+#view-lumina {
+  --accent: var(--moon);
+  --accent-2: var(--moon-strong);
+  --positive: var(--mint);
+  --warn: var(--amber);
+  --text-muted: var(--ink-3);
+  background: radial-gradient(ellipse 85% 75% at 50% 42%, var(--night) 0%, var(--night-deep) 75%);
+}
+
+/* La cara "se calienta" con la casa: con un riesgo activo, el resplandor de
+   fondo deja de seguir a la expresión y toma el color del calor (dashboard.js
+   escribe data-severity en <html>). */
+html[data-severity="warning"] #view-lumina {
+  --face-heat: var(--amber);
+}
+html[data-severity="critical"] #view-lumina {
+  --face-heat: var(--ember);
+}
+
+/* ---------- fondo: campo de nodos + viñeta ---------- */
+
+#field {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  pointer-events: none;
+}
+
+.veil {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: radial-gradient(ellipse at 50% 42%, transparent 0%, oklch(17% 0.036 268 / 0.82) 78%);
+  pointer-events: none;
+}
+
+/* ---------- composición ---------- */
+
+/* lumina.js reescribe --face-accent inline aquí según la expresión; lo heredan
+   la cara, el resplandor y el waveform. */
+.face-screen {
+  --face-accent: var(--accent);
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: var(--s-4);
+  height: 100%;
+  padding: clamp(var(--s-5), 3.2vw, 44px);
+  padding-bottom: max(clamp(var(--s-5), 3.2vw, 44px), env(safe-area-inset-bottom));
+}
+
+.ambient-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+
+.ambient-time {
+  display: block;
+  font-family: var(--font-voice);
+  font-size: var(--t-display);
+  font-weight: 300;
+  font-variant-numeric: tabular-nums lining-nums;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.ambient-date {
+  display: block;
+  margin-top: var(--s-2);
+  color: var(--ink-2);
+  font-size: 0.9375rem;
+}
+
+/* Estado de voz: reemplaza al texto "ESCUCHANDO…" en mayúsculas espaciadas
+   que vivía bajo la cara. Mismo dato, dicho como una persona lo diría. */
+.voice-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: oklch(24.5% 0.042 268 / 0.6);
+  backdrop-filter: blur(10px);
+  color: var(--ink-2);
+  font-size: var(--t-small);
+  white-space: nowrap;
+}
+
+.voice-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  transition: background-color var(--d-fast) ease;
+}
+
+.voice-status-dot--listening {
+  background: var(--moon);
+  animation: voice-blink 1.4s ease-in-out infinite;
+}
+
+.voice-status-dot--attention {
+  background: var(--amber);
+}
+
+@keyframes voice-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.face-center {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: var(--s-3);
+  min-height: 0;
+}
+
+/* ---------- la cara ---------- */
+
+/* Recibe el parallax del mouse como transform ESTÁTICO derivado de
+   --parallax-x/--parallax-y (lumina.js solo escribe las custom properties). */
+.face-stage {
+  position: relative;
+  width: min(74vw, calc((100dvh - 380px) * 1.667));
+  min-width: 240px;
+  transform:
+    perspective(900px) rotateY(calc(var(--parallax-x, 0) * 5deg))
+    rotateX(calc(var(--parallax-y, 0) * -4deg))
+    translate(calc(var(--parallax-x, 0) * 8px), calc(var(--parallax-y, 0) * 6px));
+  transition: transform 150ms var(--ease-out);
+}
+
+/* Respiración de reposo, siempre activa. */
+.face-breathe {
+  animation: face-idle-breathe 3.6s ease-in-out infinite;
+}
+
+@keyframes face-idle-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+/* Resplandor ambiental detrás de la cara: toma --face-heat, que sigue a la
+   expresión en calma y se vuelve cálido con un riesgo en la casa. */
+.face-ambient {
+  position: absolute;
+  inset: 10% 15%;
+  z-index: -1;
+  background: radial-gradient(ellipse at 50% 45%, var(--face-heat, var(--face-accent)) 0%, transparent 60%);
+  opacity: 0.07;
+  filter: blur(40px);
+  pointer-events: none;
+  transition: opacity 400ms ease;
+}
+
+html[data-severity="critical"] .face-ambient {
+  opacity: 0.16;
+}
+
+.face-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  transition: transform var(--d-fast) var(--ease-out);
+}
+
+/* Mancha de luz difusa detrás de ojos/boca — solo se enciende al escuchar. */
+.face-glow {
+  fill: var(--face-accent);
+  opacity: 0;
+  filter: blur(50px);
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: opacity 300ms ease;
+}
+
+.face-glow.face-glow--active {
+  opacity: 0.1;
+  animation: glow-breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes glow-breathe {
+  0%,
+  100% {
+    opacity: 0.06;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.13;
+    transform: scale(1.06);
+  }
+}
+
+/* Ondas concéntricas de "escuchando": dos anillos extra desfasados. */
+.face-glow--ripple {
+  animation: none;
+}
+
+.face-glow--ripple.face-glow--active {
+  animation: glow-ripple 2.4s ease-out infinite;
+}
+
+#listening-ring-2.face-glow--active {
+  animation-delay: 0.8s;
+}
+
+#listening-ring-3.face-glow--active {
+  animation-delay: 1.6s;
+}
+
+@keyframes glow-ripple {
+  0% {
+    opacity: 0.12;
+    transform: scale(0.85);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+
+/* Brillo en dos capas, más contenido que antes (luz de noche, no neón); sube
+   con --talk-glow, que lumina.js actualiza cada frame según la energía de la
+   boca al hablar (nunca 0 plano en reposo). */
+.face-eye,
+.face-mouth {
+  fill: none;
+  stroke: var(--face-accent);
+  stroke-width: 22;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter:
+    drop-shadow(0 0 calc(10px + var(--talk-glow, 0) * 16px) var(--face-accent))
+    drop-shadow(0 0 calc(22px + var(--talk-glow, 0) * 26px) var(--accent-2, var(--face-accent)));
+  transition: stroke var(--d-fast) ease;
+}
+
+/* "pensando": el arco de ojo gira + pulso rápido. lumina.js limpia el
+   transform inline del parpadeo mientras esta clase está puesta. */
+.face-eye--spin {
+  animation:
+    eye-spin 1.3s linear infinite,
+    eye-pulse-fast 0.55s ease-in-out infinite;
+}
+
+@keyframes eye-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes eye-pulse-fast {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* El parpadeo anima scaleY sobre el propio ojo; transform-box: fill-box hace
+   que el origen sea el centro de CADA ojo y no el del <svg>. */
+.face-eye {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.face-brow {
+  fill: none;
+  stroke: var(--face-accent);
+  stroke-width: 16;
+  stroke-linecap: round;
+  opacity: 0;
+  transition:
+    opacity 150ms ease,
+    stroke var(--d-fast) ease;
+}
+
+.face-brow.face-brow--visible {
+  opacity: 0.85;
+}
+
+/* cx/cy de la pupila no llevan transición CSS: lumina.js las anima con su
+   propio easing cada frame. */
+.face-pupil {
+  fill: var(--face-accent);
+  opacity: 0;
+  filter: drop-shadow(0 0 12px var(--face-accent));
+  transition: opacity 150ms ease;
+}
+
+.face-pupil.face-pupil--visible {
+  opacity: 1;
+}
+
+.face-dots {
+  fill: var(--face-accent);
+  opacity: 0;
+  filter: drop-shadow(0 0 14px var(--face-accent));
+  transition: opacity 150ms ease;
+}
+
+.face-dots.face-dots--visible {
+  opacity: 0.9;
+  animation: dots-bob 1.2s ease-in-out infinite;
+}
+
+@keyframes dots-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* "activando" / "error": todo el rostro pulsa de escala. */
+.face-svg.face--pulse {
+  animation: face-scale-pulse 500ms ease-in-out infinite;
+}
+
+@keyframes face-scale-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+/* "confundido": ladeo sutil. */
+.face-svg.face--tilt {
+  transform: rotate(-5deg);
+}
+
+/* ---------- waveform: la voz de Lumina, bajo la cara ---------- */
+
+.waveform {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  pointer-events: none;
+}
+
+.waveform-bar {
+  --waveform-h: 0.22; /* reposo: barra corta y fija, sin animación */
+  width: 3px;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--face-accent, var(--moon));
+  opacity: 0.8;
+  transform: scaleY(var(--waveform-h));
+  transform-origin: center;
+  transition: transform 120ms ease;
+}
+
+/* "escuchando": cada barra con su propio keyframe/duración/delay (vía
+   nth-child) para que la subida y bajada se lea orgánica, no sincronizada. */
+.waveform--listening .waveform-bar {
+  animation: wave-organic-a 0.9s ease-in-out infinite;
+}
+.waveform--listening .waveform-bar:nth-child(2n) {
+  animation-name: wave-organic-b;
+  animation-duration: 1.15s;
+}
+.waveform--listening .waveform-bar:nth-child(3n) {
+  animation-duration: 0.7s;
+  animation-delay: 0.15s;
+}
+.waveform--listening .waveform-bar:nth-child(5n) {
+  animation-name: wave-organic-c;
+  animation-duration: 1.3s;
+  animation-delay: 0.3s;
+}
+
+@keyframes wave-organic-a {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  30% {
+    transform: scaleY(1);
+  }
+  60% {
+    transform: scaleY(0.5);
+  }
+}
+@keyframes wave-organic-b {
+  0%,
+  100% {
+    transform: scaleY(0.5);
+  }
+  40% {
+    transform: scaleY(0.22);
+  }
+  70% {
+    transform: scaleY(0.9);
+  }
+}
+@keyframes wave-organic-c {
+  0%,
+  100% {
+    transform: scaleY(0.4);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+/* "procesando": pulso lento en cadena (--bar-i, fijado inline por barra en
+   index.html) — se lee como "ola" viajando, distinto de "escuchando". */
+.waveform--processing .waveform-bar {
+  animation: wave-processing-pulse 1.6s ease-in-out infinite;
+  animation-delay: calc(var(--bar-i, 0) * 90ms);
+}
+
+@keyframes wave-processing-pulse {
+  0%,
+  100% {
+    transform: scaleY(0.25);
+  }
+  50% {
+    transform: scaleY(0.8);
+  }
+}
+
+/* "respondiendo": sin animación CSS — lumina.js escribe --waveform-h por
+   barra cada frame con la misma energía que ya mueve la boca. */
+.waveform--speaking .waveform-bar {
+  animation: none;
+}
+
+/* ---------- pie: subtítulos + acceso a la casa ---------- */
+
+.ambient-bottom {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--s-6);
+}
+
+.captions {
+  display: grid;
+  align-content: end;
+  gap: var(--s-2);
+  max-width: 44ch;
+  min-height: 7.5rem;
+}
+
+.caption {
+  transition: opacity var(--d-base) var(--ease-out);
+}
+
+.caption.is-faded {
+  opacity: 0;
+}
+
+.caption--user {
+  min-height: 1.5em;
+  color: var(--ink-3);
+  font-size: var(--t-lead);
+  line-height: 1.4;
+}
+
+.caption--user.is-interim {
+  color: var(--ink-3);
+  opacity: 0.75;
+}
+
+/* La voz de Lumina en serif: distingue quién habla sin etiqueta "Lumina:". */
+.caption--lumina {
+  color: var(--ink);
+  font-family: var(--font-voice);
+  font-size: var(--t-caption);
+  font-weight: 400;
+  line-height: 1.22;
+  letter-spacing: -0.012em;
+  text-wrap: pretty;
+}
+
+/* Revelado palabra por palabra, al ritmo real de la voz (onboundary). Solo
+   opacidad: se ve decenas de veces al día, tiene que ser casi invisible. */
+.caption-word {
+  opacity: 0.38;
+  transition: opacity 140ms ease;
+}
+
+.caption-word.is-spoken {
+  opacity: 1;
+}
+
+.ambient-actions {
+  display: grid;
+  justify-items: end;
+  gap: var(--s-3);
+}
+
+.house-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 52px;
+  padding: var(--s-2) var(--s-3) var(--s-2) var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: oklch(24.5% 0.042 268 / 0.7);
+  backdrop-filter: blur(12px);
+  color: var(--ink);
+  text-align: left;
+  text-decoration: none;
+  touch-action: manipulation;
+  transition:
+    border-color var(--d-fast) ease,
+    transform var(--d-press) var(--ease-out);
+}
+
+.house-chip:active {
+  transform: scale(0.97);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .house-chip:hover {
+    border-color: var(--line-strong);
+  }
+}
+
+.house-chip-text {
+  display: grid;
+  line-height: 1.25;
+}
+
+.house-chip-headline {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.house-chip-detail {
+  color: var(--ink-3);
+  font-size: 0.8125rem;
+}
+
+.house-chip .icon {
+  width: 18px;
+  height: 18px;
+  color: var(--ink-3);
+}
+
+.hint {
+  max-width: 36ch;
+  color: var(--ink-3);
+  font-size: var(--t-small);
+  text-align: right;
+  transition: opacity 300ms ease;
+}
+
+.hint.is-swapping {
+  opacity: 0;
+}
+
+/* ---------- pantalla de espera (arranque) ---------- */
+
+.boot-screen {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-boot);
+  background: var(--night-deep);
+  transition: opacity 700ms var(--ease-out);
+}
+
+.boot-screen.boot-screen--hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Toda la pantalla despierta a Lumina (antes: un botón invisible de 96px en
+   una esquina, imposible de descubrir en una pantalla táctil). */
+.boot-hidden-btn {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: end center;
+  width: 100%;
+  height: 100%;
+  padding: 0 var(--s-6) max(12vh, env(safe-area-inset-bottom));
+  border: 0;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.boot-hidden-btn:focus-visible {
+  outline-offset: -8px;
+}
+
+.boot-hint {
+  font-size: var(--t-small);
+  animation: boot-hint-in 800ms var(--ease-out) 1200ms both;
+}
+
+@keyframes boot-hint-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Un solo pulso de luz de luna al encender. */
+.boot-flash {
+  position: absolute;
+  inset: 0;
+  z-index: calc(var(--z-boot) + 1);
+  background: radial-gradient(circle at 50% 45%, oklch(95% 0.03 268 / 0.85) 0%, transparent 60%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.boot-flash.boot-flash--active {
+  animation: boot-flash-pulse 550ms var(--ease-out) forwards;
+}
+
+@keyframes boot-flash-pulse {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  35% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.4);
+  }
+}
+
+/* ---------- pantallas angostas ---------- */
+
+@media (max-width: 720px) {
+  .face-stage {
+    width: min(88vw, calc((100dvh - 380px) * 1.667));
+  }
+  .ambient-bottom {
+    grid-template-columns: 1fr;
+  }
+  .ambient-actions {
+    justify-items: start;
+  }
+  .hint {
+    display: none;
+  }
+  .captions {
+    min-height: 6rem;
+  }
+}
+
+@media (max-height: 520px) {
+  .ambient-time {
+    font-size: 2.25rem;
+  }
+  .captions {
+    min-height: 0;
+  }
+}
+
+/* ---------- movimiento reducido: más suave, no cero ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .face-glow.face-glow--active,
+  .face-glow--ripple.face-glow--active,
+  .face-dots.face-dots--visible,
+  .face-svg.face--pulse,
+  .face-breathe,
+  .face-eye--spin,
+  .waveform--listening .waveform-bar,
+  .waveform--processing .waveform-bar {
+    animation: none;
+  }
+  .voice-status-dot--listening {
+    animation: none;
+  }
+  /* El parallax es un transform estático, no una @keyframes: se anula aparte. */
+  .face-stage {
+    transform: none;
+  }
+  .boot-hint {
+    animation: boot-hint-fade 400ms ease 1200ms both;
+  }
+  .boot-flash.boot-flash--active {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+@keyframes boot-hint-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .voice-state,
+  .house-chip {
+    background: var(--dusk);
+    backdrop-filter: none;
+  }
+}

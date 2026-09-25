@@ -1,0 +1,1620 @@
+/*
+  Aether — sistema de diseño único para dashboard/index.html (portada) y
+  dashboard/inventory.html (panel de Declared Inventory). No dos productos
+  distintos: mismos tokens, misma tipografía, mismo vocabulario de
+  componentes en ambas páginas.
+
+  Origen de dirección: referencia visual definitiva de Aether (campo de
+  nodos 3D en la portada, casi negro, acento azul-violeta, tipografía
+  Big Shoulders Display / IBM Plex Sans / IBM Plex Mono). Reemplaza la
+  paleta grafito/acero/ámbar sobre Inter usada antes.
+*/
+
+:root {
+  /* --- superficie: casi negro, con un segundo tono para el degradado
+     radial del hero --- */
+  --bg: #05070a;
+  --bg2: #0a0f16;
+  --surface: #0a0f16; /* paneles, tarjetas, tablas (mismo tono que bg2) */
+  --surface-raised: #131a24; /* hover / fila activa — un paso arriba de surface */
+
+  /* --- texto: base ink + ink-dim de la referencia, extendido a 4 niveles --- */
+  --ink: #edeff3;
+  --ink-dim: #8891a0;
+  --text-primary: var(--ink);
+  --text-secondary: rgba(237, 239, 243, 0.72);
+  --text-tertiary: var(--ink-dim);
+  --text-muted: rgba(136, 145, 160, 0.62);
+
+  /* --- bordes: profundidad solo por línea, nunca sombra --- */
+  --line: #1b222c;
+  --border: var(--line);
+  --border-strong: #2a3442;
+
+  /* --- acento único (interactivo/navegación): azul-violeta de la
+     referencia. Los nodos del campo usan node-a (cerca) -> node-b
+     (lejos) del mismo mismo par de tonos --- */
+  --accent: #6e8cff;
+  --node-a: #4c7ce0;
+  --node-b: #9c6be0;
+  --accent-soft: rgba(110, 140, 255, 0.12);
+  --accent-border: rgba(110, 140, 255, 0.4);
+
+  /* --- estado operativo (positivo): el mismo verde que ya usa el
+     status-dot de la referencia para "en línea" — se reutiliza en todo el
+     sistema para "Funcionando", nunca para decoración --- */
+  --positive: #5fa779;
+  --positive-soft: rgba(95, 167, 121, 0.12);
+  --positive-border: rgba(95, 167, 121, 0.4);
+
+  /* --- atención (ámbar): única adición sobre la referencia — necesaria
+     para distinguir "esto necesita tu atención" (sin identificar,
+     pendiente de hardware, retirar) de "esto es interactivo" (accent) o
+     "esto funciona" (positive). Nunca decorativo. --- */
+  --warn: #e0a64a;
+  --warn-soft: rgba(224, 166, 74, 0.12);
+  --warn-border: rgba(224, 166, 74, 0.4);
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+
+  /* --- tipografía: tres familias con roles fijos, no intercambiables ---
+     Big Shoulders Display: SOLO títulos grandes (hero, títulos de sección).
+     IBM Plex Sans: cuerpo de texto, en todas partes.
+     IBM Plex Mono: SOLO anotación técnica (kickers, tags, cifras, status). */
+  --font-display: "Big Shoulders Display", sans-serif;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Sin esto, cualquier regla de autor con `display` explícito (ej.
+   `.panel { display: flex }`) le gana en cascada al [hidden] del
+   navegador — un elemento con el atributo hidden y una clase con
+   display:flex/grid/etc. se queda visible aunque JS ponga el.hidden =
+   true. Ya pasó dos veces en este proyecto (dashboard/style.css y
+   dashboard/robot.css) antes de esta regla; con !important, [hidden]
+   siempre gana, sin importar qué display ponga después cualquier clase
+   nueva. Alternar visibilidad siempre vía el.hidden, nunca el.style.display. */
+[hidden] {
+  display: none !important;
+}
+
+html {
+  color-scheme: dark;
+  scroll-behavior: smooth;
+}
+
+/* El campo de nodos (#field) + veil son de fondo fijo en TODA la página —
+   ver node-field.js. El degradado radial vive aquí en vez de en una clase
+   modificadora porque ya no es exclusivo del hero: portada e
+   inventory.html comparten el mismo fondo. */
+body {
+  margin: 0;
+  background: radial-gradient(ellipse at 50% 30%, var(--bg2), var(--bg) 70%);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.95em;
+}
+
+/* position+z-index para pintar por encima del canvas/veil fijos (z-index
+   0/1) — sin esto, el contenido no posicionado de inventory.html pintaría
+   detrás de ellos según el orden de apilamiento normal de CSS. */
+.shell {
+  position: relative;
+  z-index: 2;
+  padding: var(--space-6) clamp(16px, 3vw, 40px) var(--space-7);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* ============================================================
+   NAV — componente compartido. Base sin posicionamiento; el modificador
+   --fixed es exclusivo de la portada (flota sobre el campo de nodos). En
+   inventory.html el mismo componente vive en flujo normal, con un borde
+   inferior para separarlo del contenido.
+   ============================================================ */
+
+.site-nav {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+  padding: 26px 40px;
+  /* franja de luz al borde inferior — la barra se lee como un instrumento
+     encendido, no como texto flotando sobre el canvas */
+  box-shadow: 0 1px 0 var(--accent-border);
+}
+
+.site-nav--fixed {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  /* scrim detrás del texto: se necesita porque el campo de nodos ahora
+     brilla más — sin esto, un nodo brillante justo detrás de una letra le
+     restaría legibilidad */
+  background: linear-gradient(
+    to bottom,
+    rgba(5, 7, 10, 0.82) 0%,
+    rgba(5, 7, 10, 0.55) 65%,
+    transparent 100%
+  );
+}
+
+.site-nav--framed {
+  padding: var(--space-5) clamp(16px, 3vw, 40px) var(--space-4);
+}
+
+.wordmark {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+  text-decoration: none;
+}
+
+.wordmark b {
+  color: var(--text-primary);
+  font-weight: 500;
+  /* glow permanente y sutil — se lee como una etiqueta encendida en un
+     panel, no como texto plano; hover/active (abajo) lo intensifican */
+  text-shadow: 0 0 8px rgba(110, 140, 255, 0.35);
+  transition: text-shadow 100ms ease;
+}
+
+.wordmark:hover {
+  color: var(--text-tertiary);
+}
+
+.wordmark:hover b {
+  color: var(--accent);
+  text-shadow: 0 0 10px rgba(110, 140, 255, 0.5);
+}
+
+.wordmark:active b {
+  color: var(--accent);
+  text-shadow: 0 0 10px rgba(110, 140, 255, 0.6);
+}
+
+.navlinks {
+  display: flex;
+  gap: 32px;
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+.navlinks a {
+  color: var(--text-tertiary);
+  text-decoration: none;
+  position: relative;
+  transition:
+    color 0.2s ease,
+    text-shadow 0.2s ease;
+}
+
+.navlinks a:hover {
+  color: var(--text-primary);
+}
+
+.navlinks a:active {
+  color: var(--accent);
+  text-shadow: 0 0 10px rgba(110, 140, 255, 0.55);
+  transition-duration: 80ms;
+}
+
+.navlinks a::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -4px;
+  width: 0;
+  height: 1px;
+  background: var(--accent);
+  transition: width 0.25s ease;
+}
+
+.navlinks a:hover::after {
+  width: 100%;
+}
+
+.status-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-tertiary);
+  border: 1px solid var(--accent-border);
+  background: rgba(110, 140, 255, 0.05);
+  padding: 6px 12px;
+  border-radius: 100px;
+  white-space: nowrap;
+  /* halo apenas perceptible — lee como un instrumento con corriente, sin
+     competir con el status-dot (que es el único acento con color fuerte) */
+  box-shadow: 0 0 14px -4px rgba(110, 140, 255, 0.4);
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--positive);
+  box-shadow: 0 0 6px 1px rgba(95, 167, 121, 0.7);
+}
+
+@media (max-width: 640px) {
+  .site-nav {
+    padding: 20px;
+  }
+  .navlinks {
+    display: none;
+  }
+  .status-pill span.txt {
+    display: none;
+  }
+}
+
+/* ============================================================
+   CAMPO DE NODOS — fondo fijo compartido por las tres pantallas
+   (dashboard/index.html e inventory.html, ver node-field.js). No se
+   detiene al final del hero: al hacer scroll sigue visible detrás de
+   Módulos, Arquitectura y de la propia tabla de inventario — por eso
+   ninguna sección de abajo lleva un fondo sólido que lo tape (ver
+   .page-section). La legibilidad se protege en dos niveles: cada
+   superficie con texto real (.panel, .module-card, .decision-table,
+   .camera-placeholder…) ya tiene su propio fondo opaco var(--surface);
+   y en inventory.html, la página con más texto suelto, el canvas se pide
+   con data-density="low" (menos nodos, líneas más tenues — ver
+   node-field.js) y el veil se refuerza con .veil--dense.
+   ============================================================ */
+
+#field {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  pointer-events: none;
+}
+
+.veil {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background: radial-gradient(ellipse at 50% 50%, transparent 30%, var(--bg) 92%);
+  pointer-events: none;
+}
+
+/* Vignette más cerrado — solo inventory.html, donde hay más texto suelto y
+   tablas de datos reales sobre el fondo. */
+.veil--dense {
+  background: radial-gradient(ellipse at 50% 40%, rgba(5, 7, 10, 0.55) 0%, var(--bg) 78%);
+}
+
+.hero {
+  position: relative;
+  z-index: 2;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 140px 24px 80px;
+}
+
+.kicker {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+  margin-bottom: 22px;
+}
+
+.hero h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(72px, 14vw, 168px);
+  line-height: 0.86;
+  letter-spacing: 0.5px;
+  background: linear-gradient(180deg, #ffffff 0%, #c7cedd 60%, #8893a8 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.tagline {
+  margin: 22px 0 0;
+  max-width: 46ch;
+  font-size: 16px;
+  color: var(--text-tertiary);
+  line-height: 1.6;
+}
+
+.tagline b {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.cta-row {
+  margin-top: 44px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+}
+
+.scroll-cue {
+  position: absolute;
+  bottom: 34px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.scroll-line {
+  width: 1px;
+  height: 30px;
+  background: linear-gradient(var(--ink-dim), transparent);
+  animation: pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+/* ============================================================
+   BOTONES — un solo componente para CTA de hero, acciones de tabla y
+   diálogo. Modificadores de color: primary (acento, la acción principal),
+   ghost (neutro, cancelar/secundario), warn (ámbar, cambia estado con
+   consecuencia visible — nunca decorativo).
+   ============================================================ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 12px 22px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-tertiary);
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s var(--ease-out);
+}
+
+.btn:hover {
+  color: var(--text-primary);
+  border-color: var(--text-tertiary);
+}
+
+.btn:active {
+  transform: scale(0.97);
+  transition-duration: 100ms; /* presión rápida, suelta a la duración base (200ms) */
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn--primary {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
+
+.btn--primary:hover {
+  background: #85a0ff;
+  color: var(--bg);
+  border-color: #85a0ff;
+}
+
+.btn--primary:active {
+  box-shadow: 0 0 0 5px var(--accent-soft);
+}
+
+.btn--warn {
+  border-color: var(--warn-border);
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.btn--warn:hover {
+  background: rgba(224, 166, 74, 0.22);
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.btn--warn:active {
+  box-shadow: 0 0 0 5px var(--warn-soft);
+}
+
+.btn--sm {
+  padding: 3px 12px;
+  font-size: 11px;
+}
+
+/* ============================================================
+   SECCIONES bajo el pliegue (page-section) — full-bleed, con un
+   .section-shell centrado adentro. Sin fondo propio a propósito: el campo
+   de nodos debe seguir visible al hacer scroll, no cortarse en el hero.
+   Cada componente con texto real adentro (tiles, tabla) trae su propio
+   fondo opaco — la sección en sí solo pinta la línea divisoria.
+   ============================================================ */
+
+.page-section {
+  position: relative;
+  z-index: 2;
+  border-top: 1px solid var(--line);
+  padding: var(--space-7) 0;
+  scroll-margin-top: 90px;
+}
+
+.section-shell {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 clamp(16px, 3vw, 40px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.section-kicker {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.section-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(32px, 5vw, 48px);
+  letter-spacing: 0.2px;
+  line-height: 1.02;
+}
+
+.section-note {
+  margin: 0;
+  max-width: 72ch;
+  font-size: 13px;
+  color: var(--text-tertiary);
+  text-wrap: pretty;
+}
+
+/* ---------- placeholder de percepción (vista de cámara) ----------
+   Marco tipo visor con esquinas de mira — el uso más literal posible de la
+   firma visual del sistema: un encuadre de cámara real, honestamente
+   marcado como todavía no conectado. */
+
+.camera-placeholder {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  max-width: 720px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.camera-placeholder .reticle-corner {
+  width: 16px;
+  height: 16px;
+}
+
+/* El stream real vive detrás de las esquinas de mira — el encuadre de
+   cámara se mantiene visible aunque ya haya imagen real adentro. */
+.camera-stream {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.camera-controls {
+  display: flex;
+  gap: var(--space-3);
+}
+
+/* Pantalla completa vía Fullscreen API sobre el propio .camera-placeholder
+   (no solo el <img>): así el marco de mira y el label siguen visibles
+   encima del video, en vez de perderse al fullscreenear solo la imagen. */
+.camera-placeholder:fullscreen {
+  max-width: none;
+  width: 100vw;
+  height: 100vh;
+  aspect-ratio: auto;
+  border-radius: 0;
+  background: #000;
+}
+
+.camera-label {
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-4);
+  z-index: 1;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: rgba(5, 7, 10, 0.6);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--warn);
+}
+
+/* Transmitiendo de verdad: mismo verde que "Funcionando" en el resto del
+   sistema — nunca ámbar mientras hay señal real. */
+.camera-label--live {
+  color: var(--positive);
+}
+
+.camera-placeholder-text {
+  max-width: 34ch;
+  padding: 0 var(--space-5);
+  color: var(--text-tertiary);
+  font-size: 13px;
+  line-height: 1.55;
+  text-align: center;
+}
+
+/* Estado "conectando" — entre SIN SEÑAL y EN VIVO/error. Abrir la cámara
+   del lado del backend (cv2.VideoCapture) puede tardar varios segundos,
+   sobre todo justo después de conectar el dispositivo físico; sin este
+   estado intermedio, esa espera se leía como un error instantáneo. */
+.camera-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.camera-spinner {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  animation: spin 800ms linear infinite;
+}
+
+.camera-loading-text {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ============================================================
+   FIRMA VISUAL — esquinas de mira. Las mismas cuatro esquinas que dibuja
+   YOLO alrededor de una detección, reutilizadas para marcar "activo/
+   detectado" en tiles, secciones e incluso el placeholder de cámara.
+   ============================================================ */
+
+.reticle {
+  position: relative;
+}
+
+.reticle-corner {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  pointer-events: none;
+}
+
+.reticle-corner--tl {
+  top: -1px;
+  left: -1px;
+  border-top: 1.5px solid var(--reticle-color, var(--accent));
+  border-left: 1.5px solid var(--reticle-color, var(--accent));
+}
+
+.reticle-corner--tr {
+  top: -1px;
+  right: -1px;
+  border-top: 1.5px solid var(--reticle-color, var(--accent));
+  border-right: 1.5px solid var(--reticle-color, var(--accent));
+}
+
+.reticle-corner--bl {
+  bottom: -1px;
+  left: -1px;
+  border-bottom: 1.5px solid var(--reticle-color, var(--accent));
+  border-left: 1.5px solid var(--reticle-color, var(--accent));
+}
+
+.reticle-corner--br {
+  bottom: -1px;
+  right: -1px;
+  border-bottom: 1.5px solid var(--reticle-color, var(--accent));
+  border-right: 1.5px solid var(--reticle-color, var(--accent));
+}
+
+.reticle-corner--sm {
+  width: 6px;
+  height: 6px;
+}
+
+/* ---------- bento de módulos ---------- */
+
+.module-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+}
+
+.module-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: inherit;
+  text-decoration: none;
+}
+
+.module-card.span-2 {
+  grid-column: span 2;
+}
+
+.module-card--active {
+  --reticle-color: var(--accent);
+  border-color: var(--accent-border);
+  cursor: pointer;
+  transition:
+    background 140ms var(--ease-out),
+    border-color 140ms var(--ease-out),
+    box-shadow 140ms var(--ease-out),
+    transform 140ms var(--ease-out);
+}
+
+.module-card--active:hover {
+  background: var(--surface-raised);
+  border-color: var(--accent);
+}
+
+.module-card--active:hover .reticle-corner {
+  border-color: var(--accent);
+}
+
+.module-card--active:active {
+  transform: scale(0.99);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  transition-duration: 100ms;
+}
+
+.module-card--active:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.module-card--pending {
+  border-style: dashed;
+  border-color: var(--warn-border);
+  background: transparent;
+  cursor: not-allowed;
+}
+
+/* "Real, pero no es un link" — mismo encuadre de mira que module-card--active
+   (esto SÍ existe/corre), pero sin cursor de clic ni hover de navegación:
+   usado en tarjetas de estado (ej. la estación de Visión del flujo de línea)
+   que no llevan a ningún lado. module-card--active sigue siendo el único
+   modificador que implica "esto es un link". */
+.module-card--live {
+  --reticle-color: var(--accent);
+  border-color: var(--accent-border);
+}
+
+.module-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.module-tag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.module-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.module-desc {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  text-wrap: pretty;
+}
+
+.module-live {
+  display: block;
+  margin-top: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+
+.module-live strong {
+  color: var(--text-primary);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.module-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.module-status--active {
+  color: var(--positive);
+}
+
+.module-status--active .status-dot {
+  background: var(--positive);
+  box-shadow: 0 0 6px 1px rgba(95, 167, 121, 0.5);
+}
+
+.module-status--pending {
+  color: var(--warn);
+}
+
+.module-status--pending .status-dot {
+  background: var(--warn);
+  box-shadow: none;
+  border-radius: 1px;
+}
+
+/* Inactiva-pero-capaz: distinto de "pendiente de hardware" (--warn, algo
+   imposible hoy). Usado por estaciones con demo real que hoy simplemente no
+   está corriendo — ej. la estación de Visión en la sección Línea de
+   manufactura antes de presionar "Iniciar". Nunca implica que el hardware
+   falte, solo que el stream no está activo en este momento. */
+.module-status--idle {
+  color: var(--text-tertiary);
+}
+
+.module-status--idle .status-dot {
+  background: var(--text-muted);
+  box-shadow: none;
+  border-radius: 1px;
+}
+
+.module-nav-arrow {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-weight: 400;
+  text-transform: none;
+}
+
+.module-card--active:hover .module-nav-arrow {
+  color: var(--accent);
+}
+
+.module-no-route {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+@media (max-width: 900px) {
+  .module-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .module-grid {
+    grid-template-columns: 1fr;
+  }
+  .module-card.span-2 {
+    grid-column: span 1;
+  }
+}
+
+/* ---------- flujo de estaciones (línea de manufactura) ----------
+   Misma tarjeta (.module-card) que el bento de arriba, en secuencia
+   horizontal con flechas en vez de grid — reutiliza el vocabulario visual
+   en vez de inventar un componente nuevo. */
+
+.line-flow {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-3);
+  overflow-x: auto;
+}
+
+.line-station {
+  flex: 1 1 200px;
+  min-width: 180px;
+}
+
+.line-arrow {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 18px;
+}
+
+@media (max-width: 900px) {
+  .line-flow {
+    flex-direction: column;
+  }
+  .line-station {
+    min-width: 0;
+  }
+  .line-arrow {
+    transform: rotate(90deg);
+    padding: var(--space-1) 0;
+  }
+}
+
+/* ---------- tabla de decisiones de arquitectura ---------- */
+
+.decision-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.decision-table th,
+.decision-table td {
+  padding: var(--space-2) var(--space-4);
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.decision-table th {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.decision-table td.decision-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.decision-table td.decision-name {
+  color: var(--text-primary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.decision-table td.decision-ref {
+  font-family: var(--font-mono);
+  color: var(--text-tertiary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.decision-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.decision-table td {
+  transition: background 120ms ease;
+}
+
+.decision-table tbody tr:hover td {
+  background: var(--surface-raised);
+}
+
+/* ---------- footer ---------- */
+
+.site-footer {
+  padding: var(--space-6) 0 var(--space-7);
+}
+
+.footer-shell {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 clamp(16px, 3vw, 40px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.footer-note {
+  color: var(--text-muted);
+}
+
+/* ============================================================
+   COMPONENTES DE inventory.html — Declared Inventory / Bitácora / retirar.
+   Mismos tokens que arriba.
+   ============================================================ */
+
+/* ---------- nota de honestidad ---------- */
+
+.coverage-note {
+  margin: 0;
+  max-width: 72ch;
+  padding: var(--space-3) var(--space-4);
+  border-left: 2px solid var(--accent-border);
+  background: var(--accent-soft);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  text-wrap: pretty;
+}
+
+/* ---------- captura continua (auto-refresh, Decisión 9 / ADR 0009) ---------- */
+
+.auto-refresh-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+}
+
+.auto-refresh-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+/* ---------- franja de instrumentos (resumen) ---------- */
+
+.gauge-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.gauge-cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4) var(--space-5);
+  border-left: 1px solid var(--line);
+}
+
+.gauge-cell:first-child {
+  border-left: none;
+}
+
+.gauge-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.gauge-value {
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.gauge-value--warn {
+  color: var(--warn);
+}
+
+.gauge-value--small {
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: normal;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 900px) {
+  .gauge-strip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .gauge-cell:nth-child(2n + 1) {
+    border-left: none;
+  }
+  .gauge-cell:nth-child(n + 3) {
+    border-top: 1px solid var(--line);
+  }
+}
+
+@media (max-width: 520px) {
+  .gauge-strip {
+    grid-template-columns: 1fr;
+  }
+  .gauge-cell {
+    border-left: none;
+  }
+  .gauge-cell:not(:first-child) {
+    border-top: 1px solid var(--line);
+  }
+}
+
+/* ---------- paneles (tabla / bitácora) ---------- */
+
+.panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--line);
+}
+
+.panel-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.panel-head-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.panel-meta {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.toggle-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-field input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  transition: box-shadow 100ms ease;
+}
+
+.toggle-field input[type="checkbox"]:active {
+  box-shadow: 0 0 0 5px var(--accent-soft);
+}
+
+.toggle-field input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.toggle-field:active {
+  color: var(--text-primary);
+}
+
+/* ---------- tabla de inventario ---------- */
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.data-table th,
+.data-table td {
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--line);
+}
+
+.data-table th {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.data-table td {
+  color: var(--text-secondary);
+}
+
+.data-table td.identifier-cell,
+.history-table td.identifier-cell {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.data-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table td {
+  transition: background 120ms ease;
+}
+
+.data-table tbody tr:hover td {
+  background: var(--surface-raised);
+}
+
+/* El indicador ámbar va en la celda, no en <tr>: box-shadow sobre filas de
+   tabla no se pinta de forma confiable en todos los navegadores. Se aplica
+   igual en la tabla de inventario y en la de cada corrida del historial. */
+tr.is-unidentified td.identifier-cell {
+  box-shadow: inset 3px 0 0 var(--warn);
+  color: var(--warn);
+}
+
+.unidentified-tag {
+  display: inline-block;
+  margin-left: var(--space-2);
+  padding: 1px 6px;
+  border: 1px solid var(--warn-border);
+  border-radius: var(--radius-sm);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  vertical-align: 1px;
+}
+
+.state-row td {
+  color: var(--text-tertiary);
+  white-space: normal;
+}
+
+.actions-cell {
+  white-space: nowrap;
+}
+
+/* Fila retirada: se atenúa (nunca desaparece del DOM cuando "Mostrar
+   retirados" está activo) — la etiqueta de abajo es la señal explícita,
+   la opacidad es refuerzo, no la única pista. */
+tr.is-retired {
+  opacity: 0.55;
+}
+
+.retired-tag {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ---------- ubicaciones (location_counts) ---------- */
+
+.data-table td.location-cell,
+.history-table td.location-cell {
+  white-space: normal;
+}
+
+.location-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.location-chip {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Marcador ArUco real: mismo acento funcional que el resto del sistema —
+   nunca ámbar, reservado para "sin identificar" (código de barras). */
+.location-chip--marker {
+  border: 1px solid var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* "sin_ubicacion": tono neutro/apagado a propósito — nunca se oculta, pero
+   no debe competir visualmente con una ubicación confirmada. */
+.location-chip--none {
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-tertiary);
+}
+
+.location-empty {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-style: italic;
+}
+
+/* ---------- bitácora / historial ---------- */
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.history-group {
+  border-bottom: 1px solid var(--line);
+}
+
+.history-group:last-child {
+  border-bottom: none;
+}
+
+.history-group summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  user-select: none;
+}
+
+.history-group summary::-webkit-details-marker {
+  display: none;
+}
+
+.history-group summary {
+  transition: background 120ms ease;
+}
+
+.history-group summary:hover {
+  background: var(--surface-raised);
+}
+
+.history-group summary:active {
+  background: var(--bg);
+  transition-duration: 60ms;
+}
+
+.history-group summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.history-caret {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-right: 1.5px solid var(--text-tertiary);
+  border-bottom: 1.5px solid var(--text-tertiary);
+  transform: rotate(-45deg);
+  transition: transform 160ms var(--ease-out);
+}
+
+.history-group[open] .history-caret {
+  transform: rotate(45deg);
+}
+
+.history-summary-time {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.history-summary-count {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.history-group-body {
+  padding: 0 var(--space-5) var(--space-4);
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.history-table th,
+.history-table td {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.history-table th {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.history-table td {
+  color: var(--text-secondary);
+}
+
+.history-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.history-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.history-table td {
+  transition: background 120ms ease;
+}
+
+.history-table tbody tr:hover td {
+  background: var(--bg2);
+}
+
+.delta {
+  margin-left: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.delta--changed {
+  color: var(--accent);
+}
+
+.delta--flat {
+  color: var(--text-muted);
+}
+
+.delta--new {
+  color: var(--accent);
+  border: 1px solid var(--accent-border);
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm);
+  padding: 0 4px;
+}
+
+.state-text {
+  margin: 0;
+  padding: var(--space-4) var(--space-5);
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
+/* ---------- diálogo de confirmación con contraseña ----------
+   <dialog> nativo en vez de prompt()/confirm() del navegador: mismo
+   lenguaje visual que el resto del panel, con teclado y foco correctos de
+   fábrica (Escape cierra, el navegador maneja el foco inicial). */
+
+.retire-dialog {
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-primary);
+  width: min(360px, calc(100vw - 32px));
+}
+
+.retire-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.retire-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+}
+
+.retire-dialog-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.retire-dialog-subtitle {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.retire-dialog-subtitle code {
+  color: var(--text-primary);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.field-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+/* Input más oscuro que la superficie que lo rodea (recibe contenido), no
+   más claro — misma disciplina de profundidad por borde que el resto del
+   sistema, sin sombras. */
+.field-input {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.field-input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.dialog-error {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--warn-border);
+  border-radius: var(--radius-sm);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 12.5px;
+}
+
+.retire-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+/* ---------- foco de teclado ---------- */
+
+a:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ---------- movimiento reducido ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .history-caret {
+    transition: none;
+  }
+  .scroll-line {
+    animation: none;
+    opacity: 0.5;
+  }
+  .camera-spinner {
+    animation: none;
+    border-top-color: var(--border-strong);
+  }
+}
