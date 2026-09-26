@@ -1,0 +1,6 @@
+[
+  { "id": "lumina", "device": 0, "zone": "livingroom", "tasks": ["people", "falls"] },
+  { "id": "cocina", "device": 2, "zone": "kitchen", "tasks": ["people", "falls"] },
+  { "id": "entrada", "device": 4, "zone": "entrance", "tasks": ["people", "door"] },
+  { "id": "sala", "device": 6, "zone": "hallway", "tasks": ["people", "falls"] }
+]

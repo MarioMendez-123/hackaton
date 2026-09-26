@@ -10,3 +10,6 @@ contacts.json
 .n8n_cookies.txt
 
 google_calendar_webapp.json
+vision_node/cameras.json
+vision_node/node.env
+yolov8n_ncnn_model/

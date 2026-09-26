@@ -54,20 +54,22 @@ pacientes**. Lumina **no compite ahí**.
 
 ## 2. Qué ya está hecho
 
-Repositorio público: https://github.com/MarioMendez-123/hackaton · **147
+Repositorio público: https://github.com/MarioMendez-123/hackaton · **167
 pruebas pasan** (`python -m pytest -q`).
 
 ### 2.1 Servidor (Python / FastAPI)
 
 | Módulo | Qué hace | Estado |
 |---|---|---|
-| `server.py` | Carga `.env`, monta todo, sirve la web, `no-cache`, arranca el vigilante de caídas. Escucha en `127.0.0.1:8000` | Hecho |
+| `server.py` | Carga `.env`, monta todo, sirve la web, `no-cache`, arranca el vigilante de caídas. Escucha en `127.0.0.1:8000` (o `LUMINA_HOST=0.0.0.0` para la red) | Hecho |
 | `backend/events.py` + `memory.py` | Contrato de eventos (`EventIn`) + historial en SQLite (`events.db`) | Hecho |
 | `backend/agent.py` | Estado de la casa + situaciones: estufa sin nadie (alerta o crítica), puerta abierta con casa vacía (5 min), puerta con protección (45 s para salir), caída (asking → ok / help / escalated) | Hecho |
-| `backend/api.py` | 31 endpoints (lista en la sección 6.1) + `check_fall_escalation` + vigilante en un hilo | Hecho |
+| `backend/api.py` | Endpoints (lista en la sección 6.1) + `check_fall_escalation` + vigilante en un hilo | Hecho |
 | `backend/briefing.py` | Resumen de la casa en una frase; frases de salida y llegada (riesgos, pendientes, agenda) | Hecho |
 | `backend/reminders.py` | Recordatorios al salir, al llegar o cuando sea | Hecho |
 | `backend/vision.py` | **Una** webcam: YOLOv8n (personas y 12 objetos, etiquetas en español), puerta por diferencia de imagen, `FallDetector` con MediaPipe Pose (rápida + baja la cadera + se queda abajo), video MJPEG | Hecho (1 cámara) |
+| `backend/nodes.py` | Nodos remotos (la Raspberry): latido, detecciones por cámara, cola de órdenes, búsqueda repartida en varias cámaras, `DEVICE_TOKEN` | Hecho (probado con cámaras simuladas) |
+| `vision_node/` | **Corre en la Raspberry**: 4 cámaras, YOLO NCNN solo si algo se mueve, pose solo donde hubo persona, manda solo cambios, video en `:8001`. Guía: `vision_node/README.md` | Hecho (falta probar en la Pi real) |
 | `backend/calendar_provider.py` | Leer Google Calendar por URL secreta iCal (varias URLs, eventos que se repiten) | Hecho |
 | `backend/calendar_writer.py` | "Agenda dentista mañana a las 5": entiende fechas en español. Crea el evento por Apps Script (reintentos con `requestId` para no duplicar) o devuelve un enlace "toca Guardar" | Hecho |
 | `backend/integrations.py` | Avisos: n8n (**activo**), Telegram (listo para activar), WhatsApp y llamadas Twilio (listo para activar), simulados | Hecho |
@@ -268,12 +270,19 @@ segundo y la temperatura):
 - Para que el número no cambie al reconectar, usar la ruta fija de
   `/dev/v4l/by-path/…` en lugar del número.
 
-### 4.4 El nodo de visión (por hacer: `vision_node/`)
+### 4.4 El nodo de visión (hecho: `vision_node/`)
 
-Es un proceso aparte, `vision_node/main.py`, que **reutiliza** lo que ya está
-probado en `backend/vision.py`: `FallDetector`, las etiquetas en español, la
-puerta por diferencia y la búsqueda. La lógica se mueve a funciones puras
-compartidas, para no duplicar.
+Es un proceso aparte, `python -m vision_node`, que **reutiliza** lo que ya está
+probado en `backend/vision.py`: `FallDetector`, `torso_from_pose`, las
+etiquetas en español y la lista de objetos que se pueden buscar. Las
+decisiones de cada cámara están en `vision_node/logic.py` (sin cámaras ni red,
+por eso se prueban); la captura, YOLO y los envíos en `vision_node/runtime.py`.
+
+**Probado** con 4 cámaras simuladas (videos) contra un servidor real: el nodo
+aparece en línea, la consola muestra las pestañas con el video de cada una y la
+búsqueda llega como orden. **Falta** probarlo en la Pi con las cámaras de verdad
+(instalación de ultralytics/NCNN/MediaPipe en ARM64, cuadros por segundo reales
+y temperatura).
 
 ```mermaid
 flowchart LR
@@ -287,7 +296,7 @@ flowchart LR
     CH --> OUT["Cliente HTTP con cola<br/>y reintentos"]
     BUF --> MJ["Video MJPEG por cámara<br/>(solo si alguien lo ve)"]
   end
-  OUT -->|"POST /events"| SRV["Servidor Lumina"]
+  OUT -->|"POST /vision/nodes/pi/events"| SRV["Servidor Lumina"]
   OUT -->|"POST /vision/nodes/pi/detections"| SRV
   SRV -->|"GET /vision/nodes/pi/commands"| OUT
   MJ -->|":8001/stream/{cam}"| BROW["Consola en el navegador"]
@@ -297,32 +306,41 @@ flowchart LR
 
 | Detección | Evento que ya entiende el servidor | Cuándo se manda |
 |---|---|---|
-| Hay o no hay personas en la zona | `motion` + `metadata.person_present` + `location` = zona | Al cambiar, estable al menos 2 s |
-| Puerta abierta o cerrada | `door_open` / `door_closed` (cámara de entrada) | Al cambiar |
+| Hay o no hay personas en la zona | `POST /vision/nodes/pi/events`: `motion` + `metadata.person_present` + `location` = zona | Al cambiar, estable al menos 2 s |
+| Puerta abierta o cerrada | `door_open` / `door_closed` (cámara con la tarea `door`) | Al cambiar, estable 1 s |
 | Posible caída | `possible_fall` + `location` | Cuando `FallDetector` dispara (el servidor pregunta "¿Estás bien?") |
-| Objeto encontrado en una búsqueda | `object_detected` + `metadata.object` + `location` | Al encontrarlo |
-| Lo que ve cada cámara | `POST /vision/nodes/pi/detections` `{cam: [{label, conf, box}]}` | Cada 1 s (para el "Veo: …" de la consola y "Lumina te mira") |
-| Latido | `POST /vision/nodes/pi/heartbeat` `{cams_ok: 4, fps: {...}, temp_c}` | Cada 5 s (si deja de llegar: "cámaras desconectadas") |
+| Objeto encontrado en una búsqueda | `POST /vision/nodes/pi/found` `{camera, zone, confidence}` (el servidor guarda `object_detected`) | Al encontrarlo; gana la primera cámara |
+| Lo que ve cada cámara | `POST /vision/nodes/pi/detections` `{cam: [{label, confidence}]}` | Cada 1 s (para el "Veo: …" de la consola) |
+| Latido | `POST /vision/nodes/pi/heartbeat` `{cameras: [{id, zone, ok, fps, …}], stream_url, temp_c}` | Cada 5 s (sin latido en 12 s: "desconectado") |
 
-**Qué recibe** (el nodo pregunta por órdenes cada segundo):
-`find {object}`, `cancel_find`, `calibrate_door {cam}`, `snapshot {cam}` (solo
-local).
+Los eventos se reintentan hasta que el servidor responde (no se pierde una
+caída si el servidor se reinicia); el latido y las detecciones no, porque
+caducan.
 
-### 4.5 Cambios en el servidor para el nodo (por hacer)
+**La casa está vacía solo si ninguna cámara ve a alguien:** el servidor
+guarda qué zona tiene gente (`agent._zones`); "salgo de casa" vacía todas.
 
-1. **Escuchar en la red:** `LUMINA_HOST=0.0.0.0` en `.env` y usarlo en `server.py`.
+**Qué recibe** (el nodo pregunta por órdenes cada segundo con
+`GET /vision/nodes/pi/commands`): `find {object, label}`, `cancel_find`,
+`calibrate_door`.
+
+### 4.5 Cambios en el servidor para el nodo (hechos)
+
+1. **Escuchar en la red:** `LUMINA_HOST=0.0.0.0` en `.env` (lo usa `server.py`).
 2. **Token de dispositivos:** `DEVICE_TOKEN` en `.env`. Los nodos lo mandan
-   en `X-Lumina-Token`, y se rechaza sin él.
-3. **Nuevo `backend/nodes.py`:**
-   - registro de nodos (Pi y ESP32), latido, cola de órdenes;
-   - `POST /vision/nodes/{id}/detections|heartbeat`,
-     `GET /vision/nodes/{id}/commands`, `POST /vision/nodes/{id}/ack`.
-4. **La búsqueda** ("busca mi mochila") se manda al nodo como orden. La
-   respuesta dice **en qué cuarto** está.
-5. **Consola:** 4 miniaturas de cámara (video desde `http://<pi>:8001/stream/<cam>`).
-   Al tocar una se ve en grande.
-6. **"Lumina te mira":** la cara recibe la posición x de la persona que ve la
-   cámara `lumina` y mueve las pupilas hacia ella.
+   en `X-Lumina-Token`; sin él, 401. Si `DEVICE_TOKEN` está vacío se acepta
+   todo (solo para probar en la laptop).
+3. **`backend/nodes.py`** + rutas en `api.py`: `GET /vision/nodes` y
+   `POST /vision/nodes/{id}/heartbeat|detections|events|found`,
+   `GET /vision/nodes/{id}/commands`. Sin `ack`: la orden sale de la cola al
+   entregarse.
+4. **La búsqueda** ("busca mi mochila") usa el nodo si la cámara de la laptop
+   está apagada: se manda a todas sus cámaras y la respuesta dice **en qué
+   cuarto** está. Se rinde a los 25 s.
+5. **Consola:** pestañas Lumina / Cocina / Entrada / Sala sobre el video
+   (`http://<pi>:8001/stream/<cam>`); "Veo: …" filtra por la cámara elegida.
+6. **"Lumina te mira"** (por hacer): la cara recibe la posición x de la persona
+   que ve la cámara `lumina` y mueve las pupilas hacia ella.
 
 ### 4.6 Instalar en la Raspberry (paso a paso)
 
@@ -337,21 +355,24 @@ pip install ncnn                           # motor rápido para YOLO en la Pi
 python -c "import mediapipe, ultralytics, cv2; print('ok')"   # si mediapipe no instala en ARM, caídas en la laptop
 yolo export model=yolov8n.pt format=ncnn imgsz=320
 v4l2-ctl --list-devices                    # ver qué /dev/video es cada cámara
-# crear vision_node/cameras.json y .env (LUMINA_SERVER_URL, DEVICE_TOKEN)
-python -m vision_node                      # cuando exista (sección 4.4)
+cp vision_node/cameras.example.json vision_node/cameras.json   # y ajustar "device"
+export LUMINA_SERVER_URL=http://IP-DE-LA-LAPTOP:8000 DEVICE_TOKEN=la-misma-clave NODE_STREAM_HOST=IP-DE-LA-PI
+python -m vision_node
 ```
 
 **Arranque automático:** un servicio `systemd`, `lumina-vision.service`, con
-reinicio si falla. La Pi 4 no lleva pantalla: se administra por SSH.
+reinicio si falla (la unidad está en `vision_node/README.md`). La Pi 4 no lleva
+pantalla: se administra por SSH.
 
 **Micrófono:** la cara de Lumina corre en la laptop (`localhost`), así que **no
 hace falta HTTPS**. Solo haría falta si otra pantalla por la red quiere usar el
 micrófono (`mkcert`, sección 8 de `ARQUITECTURA.md`).
 
-**Pruebas del nodo** (por hacer): `FallDetector` y las etiquetas ya tienen
-pruebas. Faltan: el turno de las 4 cámaras (con cámaras simuladas), el
-detector de cambios (que no mande de más) y la cola con reintentos (que no se
-pierda un evento si el servidor se reinicia).
+**Pruebas del nodo** (`test_vision_node.py`, 20 pruebas): análisis solo si
+algo se mueve, presencia estable (no manda de más), etiquetas en español,
+puerta con calibración, caída una sola vez, pose solo donde hubo persona,
+objeto encontrado, cola con reintentos, token, búsqueda repartida, varias
+cámaras en la ocupación y nodo desconectado.
 
 ---
 
@@ -361,11 +382,11 @@ pierda un evento si el servidor se reinicia).
 
 | # | De → a | Protocolo y puerto | Autenticación | Qué viaja | Frecuencia | Estado |
 |---|---|---|---|---|---|---|
-| 1 | Cámaras → Raspberry | USB (UVC, MJPEG 640×480) | — | Video | Continuo | Por hacer (hoy: 1 cámara en la laptop) |
-| 2 | Raspberry → Servidor | HTTP `:8000` `POST /events` | `X-Lumina-Token` | Eventos (personas, puerta, caída, objeto) | Al cambiar | Por hacer (el contrato existe) |
-| 3 | Raspberry → Servidor | HTTP `POST /vision/nodes/pi/detections` y `heartbeat` | Token | Qué ve cada cámara; salud | 1 s / 5 s | Por hacer |
-| 4 | Servidor → Raspberry | HTTP: la Pi pregunta `GET …/commands` | Token | Buscar, cancelar, calibrar | Cada 1 s | Por hacer |
-| 5 | Navegador → Raspberry | HTTP `:8001/stream/{cam}` | Solo red local | Video MJPEG | Mientras se ve | Por hacer (hoy: `/vision/stream`) |
+| 1 | Cámaras → Raspberry | USB (UVC, MJPEG 640×480, 10 fps) | — | Video | Continuo | Hecho (probado con cámaras simuladas) |
+| 2 | Raspberry → Servidor | HTTP `:8000` `POST /vision/nodes/pi/events` y `…/found` | `X-Lumina-Token` | Eventos (personas, puerta, caída, objeto) | Al cambiar, con reintentos | Hecho |
+| 3 | Raspberry → Servidor | HTTP `POST /vision/nodes/pi/detections` y `heartbeat` | Token | Qué ve cada cámara; salud | 1 s / 5 s | Hecho |
+| 4 | Servidor → Raspberry | HTTP: la Pi pregunta `GET …/commands` | Token | Buscar, cancelar, calibrar | Cada 1 s | Hecho |
+| 5 | Navegador → Raspberry | HTTP `:8001/stream/{cam}` | Solo red local | Video MJPEG | Mientras se ve | Hecho |
 | 6 | ESP32 → Servidor | HTTP `POST /events` y `/devices/{id}/hello` | Token | Temperatura, movimiento, puerta, estado de relés | Al cambiar y cada 30 s | Por hacer |
 | 7 | Servidor → ESP32 | HTTP: el ESP32 pregunta `GET /devices/{id}/poll` | Token | Relé, servo, LCD, infrarrojo | Cada 1 s | Por hacer |
 | 7b | ESP32 ↔ AWS IoT Core | MQTT sobre TLS, puerto 8883 | Certificado X.509 por dispositivo | Temas `home/sensors/...`, `home/actions` | Al cambiar | Por hacer (fase 2) |
@@ -482,7 +503,11 @@ sequenceDiagram
 - **Anti-extorsión:** `POST /messages/analyze`.
 - **Lumina:** `POST /lumina/ask` · `POST /lumina/speak`.
 
-**Nuevos, por hacer:** `/vision/nodes/*` · `/devices/*` ·
+- **Nodo de visión (Raspberry):** `GET /vision/nodes` ·
+  `POST /vision/nodes/{id}/heartbeat|detections|events|found` ·
+  `GET /vision/nodes/{id}/commands` (con `X-Lumina-Token`).
+
+**Nuevos, por hacer:** `/devices/*` ·
 `/channels/whatsapp` · `/webhooks/zavu` (si no pasa por n8n).
 
 ### 6.2 ElevenLabs (la voz de Lumina y del agente de llamadas)
@@ -653,8 +678,8 @@ Zavu no está disponible.
 
 | # | Tarea | Resultado para la demo | Depende de |
 |---|---|---|---|
-| 1 | Servidor en la red (`LUMINA_HOST`, `DEVICE_TOKEN`, IP fija) | La Pi y los ESP32 pueden hablarle | — |
-| 2 | **Nodo de visión en la Raspberry Pi 4** con 4 cámaras ("solo si se mueve", NCNN 320; secciones 4.2–4.5) | Personas, puerta, caídas y objetos en 4 zonas | 1 |
+| 1 | Servidor en la red (`LUMINA_HOST`, `DEVICE_TOKEN`, IP fija) | La Pi y los ESP32 pueden hablarle | Código hecho; falta la IP fija |
+| 2 | **Nodo de visión en la Raspberry Pi 4** con 4 cámaras ("solo si se mueve", NCNN 320; secciones 4.2–4.5) | Personas, puerta, caídas y objetos en 4 zonas | Código hecho; falta instalar y probar en la Pi |
 | 3 | **ESP32 Cocina** (DHT11, PIR, relé LED "estufa") + `/devices/*` + "¿La apago?" | **Escena 1: la casa que actúa** | 1 |
 | 4 | **Zavu + n8n + `/channels/whatsapp`** + túnel | WhatsApp de ida y vuelta | Credenciales de Zavu |
 | 5 | **Ray-Ban Meta** probado con WhatsApp en español | **Escena 2: la casa en tus lentes** | 4 |
@@ -698,8 +723,8 @@ reales están en `SUPER_ALEXA_PRIVADO.md`, fuera del repositorio.**
 | Webhook de n8n | `N8N_WEBHOOK_URL` | Tenemos |
 | Número de alertas | `TWILIO_ALERT_PHONE` | Tenemos |
 | Google Calendar | `google_calendar_url.txt`, `google_calendar_webapp.json` | Tenemos |
-| Token de dispositivos | `DEVICE_TOKEN` (nuevo) | Crear |
-| URL del servidor para la Pi | `LUMINA_SERVER_URL` (nuevo) | Crear |
+| Token de dispositivos | `DEVICE_TOKEN` (el mismo en la laptop y en la Pi) | Crear (cualquier clave larga) |
+| URL del servidor para la Pi | `LUMINA_SERVER_URL` en `vision_node/node.env` | Crear (IP de la laptop) |
 | Zavu | `ZAVU_API_KEY`, `ZAVU_WHATSAPP_NUMBER`, secreto del webhook | Conseguir en el evento |
 | ElevenLabs | `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` | Conseguir |
 | AWS | Cuenta, usuario IAM, `AWS_IOT_ENDPOINT`, certificados por ESP32 | Conseguir |

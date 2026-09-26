@@ -20,8 +20,12 @@ from datetime import datetime, timezone
 from typing import Any
 
 import cv2
-import mediapipe as mp
 import numpy as np
+
+try:
+    import mediapipe as mp
+except ImportError:  # p. ej. una Raspberry donde no instaló: sin caídas, lo demás sigue
+    mp = None
 
 from backend import agent, memory
 from backend.events import EventIn
@@ -161,7 +165,10 @@ def _get_yolo():
 
 
 def _get_pose():
+    """None si MediaPipe no está instalado: la cámara sigue, sin caídas."""
     global _pose_model
+    if mp is None:
+        return None
     if _pose_model is None:
         import urllib.request
 
@@ -209,6 +216,27 @@ def fall_angle_from_points(shoulder_mid: tuple[float, float], hip_mid: tuple[flo
 
 def is_fallen_posture(shoulder_mid: tuple[float, float], hip_mid: tuple[float, float]) -> bool:
     return fall_angle_from_points(shoulder_mid, hip_mid) >= FALL_ANGLE_DEGREES
+
+
+def torso_from_pose(frame: np.ndarray, pose) -> tuple[float, float] | None:
+    """(ángulo del torso, altura de la cadera 0-1) de la persona que MediaPipe
+    ve, o None si no hay nadie. Lo usan la cámara local y el nodo de la
+    Raspberry (vision_node), así las caídas se deciden igual en los dos."""
+    height, width = frame.shape[:2]
+    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    result = pose.detect(mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb))
+    if not result.pose_landmarks:
+        return None
+    lm = result.pose_landmarks[0]
+    shoulder_mid = (
+        (lm[_POSE_SHOULDER_L].x + lm[_POSE_SHOULDER_R].x) / 2 * width,
+        (lm[_POSE_SHOULDER_L].y + lm[_POSE_SHOULDER_R].y) / 2 * height,
+    )
+    hip_mid = (
+        (lm[_POSE_HIP_L].x + lm[_POSE_HIP_R].x) / 2 * width,
+        (lm[_POSE_HIP_L].y + lm[_POSE_HIP_R].y) / 2 * height,
+    )
+    return fall_angle_from_points(shoulder_mid, hip_mid), hip_mid[1] / height
 
 
 class FallDetector:
@@ -381,7 +409,8 @@ class LocalCameraProvider:
             person_present = self._detect_and_draw(frame, yolo)
             self._apply_occupancy(person_present)
             self._apply_door_state(gray)
-            self._apply_fall_detection(frame, pose)
+            if pose is not None:
+                self._apply_fall_detection(frame, pose)
 
             ok_jpeg, buf = cv2.imencode(".jpg", frame)
             if ok_jpeg:
@@ -472,25 +501,12 @@ class LocalCameraProvider:
         agent.apply_event(stored)
 
     def _apply_fall_detection(self, frame: np.ndarray, pose) -> None:
-        height, width = frame.shape[:2]
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-        result = pose.detect(mp_image)
-        if not result.pose_landmarks:
+        torso = torso_from_pose(frame, pose)
+        if torso is None:
             return  # nadie a la vista (o tapado un momento): no cambia nada
-
-        lm = result.pose_landmarks[0]
-        shoulder_mid = (
-            (lm[_POSE_SHOULDER_L].x + lm[_POSE_SHOULDER_R].x) / 2 * width,
-            (lm[_POSE_SHOULDER_L].y + lm[_POSE_SHOULDER_R].y) / 2 * height,
-        )
-        hip_mid = (
-            (lm[_POSE_HIP_L].x + lm[_POSE_HIP_R].x) / 2 * width,
-            (lm[_POSE_HIP_L].y + lm[_POSE_HIP_R].y) / 2 * height,
-        )
-        angle = fall_angle_from_points(shoulder_mid, hip_mid)
+        angle, hip_y = torso
         now = time.time()
-        if not self._fall_detector.update(now, angle, hip_mid[1] / height):
+        if not self._fall_detector.update(now, angle, hip_y):
             return
         if now - self._last_fall_notified_at <= FALL_COOLDOWN_SECONDS:
             return

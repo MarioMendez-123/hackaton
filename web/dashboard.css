@@ -566,6 +566,13 @@ html[data-voice="processing"] .mini-eye {
   list-style: none;
 }
 
+/* Pestañas de cámaras de la Raspberry: la elegida en luz de luna. */
+.camera-tabs .chip[aria-pressed="true"] {
+  border-color: var(--moon);
+  color: var(--ink);
+  background: oklch(86% 0.065 268 / 0.14);
+}
+
 .search-status {
   min-height: 1.5em;
   color: var(--ink-2);

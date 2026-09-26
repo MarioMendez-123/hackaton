@@ -522,6 +522,11 @@ let cameraOn = false;
 let detectionsTimer = null;
 
 function setCameraUi(running) {
+  // Con la Raspberry conectada, la cámara local apagada no apaga la vista.
+  if (!running && nodeCams.length) {
+    renderNodeCams();
+    return;
+  }
   cameraOn = running;
   $("cameraToggleBtn").textContent = running ? "Apagar" : "Encender";
   $("cameraPlaceholder").hidden = running;
@@ -543,6 +548,10 @@ window.setCameraUiFromVoice = setCameraUi;
 
 cameraFeedEl.addEventListener("error", () => {
   if (!cameraOn) return;
+  if (nodeCams.length) {
+    showToast({ title: "Se perdió el video de esta cámara", body: "La Raspberry sigue detectando; revisa su conexión.", tone: "warning" });
+    return;
+  }
   setCameraUi(false);
   showToast({ title: "Se perdió la señal de la cámara", body: "Vuelve a encenderla cuando quieras.", tone: "warning" });
 });
@@ -588,7 +597,9 @@ function syncDetectionsPoll() {
 async function refreshDetections() {
   try {
     const { running, detections } = await getJson("/vision/detections");
-    const labels = [...new Set(detections.map((d) => d.label))];
+    // Con la Raspberry llegan las de las 4 cámaras: solo las de la que se ve.
+    const shown = selectedCam ? detections.filter((d) => d.camera === selectedCam) : detections;
+    const labels = [...new Set(shown.map((d) => d.label))];
     const sees = $("osdSees");
     sees.hidden = !running || labels.length === 0;
     sees.textContent = `Veo: ${labels.slice(0, 4).join(", ")}`;
@@ -598,6 +609,72 @@ async function refreshDetections() {
 }
 
 document.addEventListener("visibilitychange", syncDetectionsPoll);
+
+// ---- Cámaras de la Raspberry (vision_node) -------------------------------------
+// Si hay un nodo vivo, la cámara de esta computadora no hace falta: se muestran
+// sus cámaras en pestañas y el video viene directo de la Pi (puerto 8001).
+
+const NODES_MS = 5000;
+const CAMERA_NAMES = { lumina: "Lumina", cocina: "Cocina", entrada: "Entrada", sala: "Sala" };
+let nodeCams = []; // [{id, zone, ok, streamUrl}]
+let selectedCam = null;
+
+async function refreshNodes() {
+  let list;
+  try {
+    list = await getJson("/vision/nodes");
+  } catch {
+    return;
+  }
+  const cams = list
+    .filter((node) => node.online && node.stream_url)
+    .flatMap((node) => node.cameras.map((cam) => ({ ...cam, streamUrl: `${node.stream_url}/stream/${cam.id}` })));
+  const key = (arr) => arr.map((c) => `${c.id}:${c.ok}`).join(",");
+  if (key(cams) === key(nodeCams)) return;
+  const hadNodes = nodeCams.length > 0;
+  nodeCams = cams;
+  if (!cams.length && hadNodes) {
+    selectedCam = null;
+    $("cameraTabs").hidden = true;
+    $("cameraToggleBtn").hidden = false;
+    setCameraUi(false);
+    return;
+  }
+  renderNodeCams();
+}
+
+function renderNodeCams() {
+  const tabs = $("cameraTabs");
+  tabs.textContent = "";
+  tabs.hidden = nodeCams.length === 0;
+  $("cameraToggleBtn").hidden = nodeCams.length > 0;
+  if (!nodeCams.length) return;
+  if (!nodeCams.some((cam) => cam.id === selectedCam)) selectedCam = nodeCams[0].id;
+  for (const cam of nodeCams) {
+    const li = document.createElement("li");
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "chip";
+    chip.setAttribute("aria-pressed", String(cam.id === selectedCam));
+    chip.textContent = (CAMERA_NAMES[cam.id] ?? cam.id) + (cam.ok ? "" : " (sin señal)");
+    chip.addEventListener("click", () => {
+      selectedCam = cam.id;
+      renderNodeCams();
+    });
+    li.append(chip);
+    tabs.append(li);
+  }
+  const cam = nodeCams.find((c) => c.id === selectedCam);
+  cameraOn = true; // la Raspberry siempre está mirando: no hay que "encender"
+  $("cameraPlaceholder").hidden = true;
+  $("osdLive").hidden = false;
+  $("calibrateDoorBtn").disabled = false;
+  planEl.dataset.camera = "on";
+  cameraFeedEl.hidden = false;
+  cameraFeedEl.alt = `Video en vivo: ${CAMERA_NAMES[cam.id] ?? cam.id}`;
+  if (cameraFeedEl.src !== cam.streamUrl) cameraFeedEl.src = cam.streamUrl;
+  syncDetectionsPoll();
+}
 
 // ---- búsqueda ------------------------------------------------------------------
 
@@ -1018,6 +1095,9 @@ if (document.documentElement.dataset.view === "dashboard") drawPlanOnce();
 
 refreshHome();
 schedulePoll(OVERVIEW_MS);
+
+refreshNodes();
+setInterval(refreshNodes, NODES_MS);
 
 getJson("/vision/status")
   .then(({ running }) => setCameraUi(running))

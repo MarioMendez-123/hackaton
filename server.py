@@ -55,4 +55,6 @@ app.mount("/", StaticFiles(directory=Path(__file__).parent / "web", html=True), 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    # En la red de la casa (Raspberry, ESP32, otras pantallas): LUMINA_HOST=0.0.0.0
+    # en .env. Por defecto solo esta computadora.
+    uvicorn.run(app, host=os.environ.get("LUMINA_HOST", "127.0.0.1"), port=int(os.environ.get("LUMINA_PORT", "8000")))

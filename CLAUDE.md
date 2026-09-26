@@ -41,6 +41,11 @@ backend/
   briefing.py             textos: resumen de la casa, frases de salida/llegada
   reminders.py            recordatorios (al salir / al llegar / cuando sea)
   vision.py               webcam: YOLOv8n (objetos/personas), puerta por diferencia de imagen, FallDetector (MediaPipe Pose)
+  nodes.py                nodos remotos (la Raspberry): latido, detecciones, cola de órdenes, búsqueda repartida, DEVICE_TOKEN
+vision_node/              corre EN LA RASPBERRY: 4 cámaras USB, YOLO NCNN solo si algo se mueve, pose solo donde hubo persona,
+                          manda solo cambios a /vision/nodes/{id}/...; video en :8001 (ver vision_node/README.md)
+  logic.py                decisiones por cámara (sin cámaras ni red: se prueba en test_vision_node.py)
+  runtime.py              captura, YOLO, envíos con reintento, servidor de video, bucle principal
   calendar_provider.py    leer Google Calendar (URLs secretas iCal, varias)
   calendar_writer.py      agendar por voz: entiende fechas en español; Apps Script o enlace "toca Guardar"
   integrations.py         avisos: n8n, Telegram, WhatsApp/llamadas Twilio, mocks
@@ -92,6 +97,7 @@ voice_commands_check.js   frases reales de Chrome/Edge -> comando esperado
 | `contacts.json` | `[{"name": "Mamá", "relation": "madre"}]` (opcional) |
 | `events.db` | historial (se crea solo) |
 | `yolov8n.pt`, `pose_landmarker_lite.task` | modelos (se descargan solos al encender la cámara) |
+| `vision_node/cameras.json`, `vision_node/node.env` | cámaras y variables de la Raspberry (copiar de `cameras.example.json`) |
 
 El repo es **público**: nunca subir teléfonos, correos, URLs secretas ni tokens.
 

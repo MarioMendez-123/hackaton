@@ -8,14 +8,14 @@ import threading
 import time
 from urllib.parse import quote
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Header, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from backend import agent, briefing, calendar_provider, calendar_writer, contacts, fraud_detector, memory, reminders
+from backend import agent, briefing, calendar_provider, calendar_writer, contacts, fraud_detector, memory, nodes, reminders
 from backend.events import EventIn
 from backend.integrations import caller, channel_status, notifier
-from backend.vision import SEARCHABLE_OBJECTS, camera
+from backend.vision import OBJECT_NAME_MAP, SEARCHABLE_OBJECTS, camera, map_object_name
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -303,7 +303,7 @@ def integrations_status() -> dict:
         **channel_status(),
         "calendar": calendar_provider.is_configured(),
         "contacts": contacts.is_configured(),
-        "camera": camera.is_running(),
+        "camera": camera.is_running() or nodes.any_online(),
         "voice_key": bool(os.environ.get("ELEVENLABS_API_KEY")),
     }
 
@@ -336,6 +336,8 @@ def vision_status() -> dict:
 
 @router.get("/vision/detections")
 def vision_detections() -> dict:
+    if not camera.is_running() and nodes.any_online():
+        return {"running": True, "detections": nodes.labels_seen()}
     return {"running": camera.is_running(), "detections": camera.get_detections()}
 
 
@@ -361,6 +363,9 @@ def vision_stream() -> StreamingResponse:
 
 @router.post("/vision/calibrate_door")
 def calibrate_door() -> dict:
+    if not camera.is_running() and nodes.any_online():
+        nodes.enqueue({"do": "calibrate_door"})  # la cámara de la entrada toma su foto de referencia
+        return {"calibrated": True}
     if not camera.calibrate_door():
         raise HTTPException(status_code=503, detail="Todavía no hay un frame de la cámara para calibrar.")
     return {"calibrated": True}
@@ -370,8 +375,26 @@ class FindRequest(BaseModel):
     object: str
 
 
+# Quién lleva la búsqueda en curso: la cámara de esta computadora o los nodos
+# (la Raspberry). Así el estado y el cancelar le preguntan al correcto.
+_search_via = "local"
+
+
 @router.post("/vision/find")
 def find_object(body: FindRequest) -> dict:
+    global _search_via
+    if not camera.is_running() and nodes.any_online():
+        target = map_object_name(body.object)
+        if target is None:
+            raise HTTPException(
+                status_code=422,
+                detail=f"No sé buscar '{body.object}' con la cámara. Objetos que sí reconozco: "
+                f"{', '.join(sorted(set(OBJECT_NAME_MAP)))}.",
+            )
+        nodes.start_search(body.object.strip(), target)
+        _search_via = "nodes"
+        return {"status": "searching"}
+    _search_via = "local"
     result = camera.start_search(body.object)
     if not result["ok"]:
         raise HTTPException(
@@ -384,13 +407,90 @@ def find_object(body: FindRequest) -> dict:
 
 @router.get("/vision/find/status")
 def find_object_status() -> dict:
-    return camera.get_search_status()
+    return nodes.search_status() if _search_via == "nodes" else camera.get_search_status()
 
 
 @router.post("/vision/find/cancel")
 def cancel_find_object() -> dict:
     camera.cancel_search()
+    nodes.cancel_search()
     return {"status": "idle"}
+
+
+# ---------------------------------------------------------------------------
+# Nodos de visión (la Raspberry Pi con 4 cámaras, vision_node/). Mandan solo
+# lo que cambió; el servidor decide igual que con cualquier otra fuente.
+# Protegidos con X-Lumina-Token (DEVICE_TOKEN en .env) cuando está configurado.
+# ---------------------------------------------------------------------------
+
+
+def _check_device(token: str | None) -> None:
+    if not nodes.token_ok(token):
+        raise HTTPException(status_code=401, detail="Token de dispositivo inválido.")
+
+
+class NodeHeartbeat(BaseModel):
+    cameras: list[dict] = []
+    stream_url: str | None = None
+    temp_c: float | None = None
+
+
+class NodeFound(BaseModel):
+    camera: str
+    zone: str | None = None
+    confidence: float = 0.0
+
+
+@router.get("/vision/nodes")
+def list_nodes() -> list[dict]:
+    return nodes.summary()
+
+
+@router.post("/vision/nodes/{node_id}/heartbeat")
+def node_heartbeat(node_id: str, body: NodeHeartbeat, x_lumina_token: str | None = Header(default=None)) -> dict:
+    _check_device(x_lumina_token)
+    nodes.heartbeat(node_id, body.model_dump())
+    return {"ok": True}
+
+
+@router.post("/vision/nodes/{node_id}/detections")
+def node_detections(
+    node_id: str, body: dict[str, list[dict]], x_lumina_token: str | None = Header(default=None)
+) -> dict:
+    _check_device(x_lumina_token)
+    nodes.set_detections(node_id, body)
+    return {"ok": True}
+
+
+@router.post("/vision/nodes/{node_id}/events")
+def node_event(node_id: str, event: EventIn, x_lumina_token: str | None = Header(default=None)) -> dict:
+    _check_device(x_lumina_token)
+    _, situation = _ingest(event)
+    return {"situation": situation}
+
+
+@router.post("/vision/nodes/{node_id}/found")
+def node_found(node_id: str, body: NodeFound, x_lumina_token: str | None = Header(default=None)) -> dict:
+    _check_device(x_lumina_token)
+    if not nodes.search_found(body.camera, body.zone, body.confidence):
+        return {"closed": False}
+    label = nodes.search_status().get("object")
+    memory.save_event(
+        EventIn(
+            source=f"{node_id}_{body.camera}",
+            type="object_detected",
+            location=body.zone,
+            confidence=body.confidence,
+            metadata={"object": label, "camera": body.camera},
+        )
+    )
+    return {"closed": True}
+
+
+@router.get("/vision/nodes/{node_id}/commands")
+def node_commands(node_id: str, x_lumina_token: str | None = Header(default=None)) -> dict:
+    _check_device(x_lumina_token)
+    return {"commands": nodes.pop_commands(node_id)}
 
 
 class FallConfirmRequest(BaseModel):

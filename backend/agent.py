@@ -52,6 +52,7 @@ def _default_state() -> dict[str, Any]:
         "_door_changed_at": None,
         "_armed_at": None,
         "_fall": None,
+        "_zones": {},  # zona -> ¿hay alguien? (una por cámara o sensor)
     }
 
 
@@ -91,11 +92,21 @@ def apply_event(event: dict[str, Any]) -> dict[str, Any]:
     elif event_type == "flame":
         _STATE["kitchen"]["flame"] = _normalize_level(metadata.get("level"))
     elif event_type == "motion" and "person_present" in metadata:
-        occupancy = "occupied" if metadata["person_present"] else "empty"
-        if location == "kitchen":
-            _STATE["kitchen"]["occupancy"] = occupancy
+        present = bool(metadata["person_present"])
+        # Con varias cámaras cada zona reporta por su cuenta: la casa está vacía
+        # solo si NINGUNA ve a alguien (si la entrada dice "nadie" mientras la
+        # sala ve a alguien, la casa no está vacía). "home" es un aviso de toda
+        # la casa (voz: "salgo de casa" / "ya llegué") y pisa todas las zonas.
+        zones = _STATE["_zones"]
+        if location in (None, "home"):
+            for zone in zones:
+                zones[zone] = present
+            zones["home"] = present
         else:
-            _STATE["home"]["occupancy"] = occupancy
+            zones[location] = present
+        if "kitchen" in zones and location in ("kitchen", None, "home"):
+            _STATE["kitchen"]["occupancy"] = "occupied" if zones["kitchen"] else "empty"
+        _STATE["home"]["occupancy"] = "occupied" if any(zones.values()) else "empty"
     elif event_type == "possible_fall":
         # Otra fuente (un ESP32, un wearable, la demo) también puede reportarla.
         report_possible_fall(location, event.get("confidence"))

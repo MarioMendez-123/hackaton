@@ -15,7 +15,7 @@
     <link rel="stylesheet" href="tokens.css?v=3" />
     <link rel="stylesheet" href="app-shell.css?v=9" />
     <link rel="stylesheet" href="lumina.css?v=3" />
-    <link rel="stylesheet" href="dashboard.css?v=9" />
+    <link rel="stylesheet" href="dashboard.css?v=12" />
   </head>
   <body>
     <!-- Iconos: una sola familia de trazo (24×24, 1.75). Se usan con
@@ -209,6 +209,7 @@
                   <button type="button" class="btn btn--sm" id="cameraToggleBtn">Encender</button>
                 </div>
 
+                <ul class="object-chips camera-tabs" id="cameraTabs" aria-label="Cámaras de la Raspberry" hidden></ul>
                 <div class="camera" id="cameraFrame">
                   <img class="camera-feed" id="cameraFeed" alt="Video en vivo de la cámara de la casa" width="640" height="480" hidden />
                   <div class="camera-empty" id="cameraPlaceholder">
@@ -473,6 +474,6 @@
     <script src="app-shell.js?v=9"></script>
     <script src="voice-commands.js?v=10"></script>
     <script src="lumina.js?v=10"></script>
-    <script src="dashboard.js?v=11"></script>
+    <script src="dashboard.js?v=12"></script>
   </body>
 </html>
