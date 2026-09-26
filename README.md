@@ -238,6 +238,20 @@ que la voz la abra directo, en la barra de direcciones toca el ícono de
 
 Consola del navegador: `setFaceExpression('feliz')`, `askLumina('hola')`.
 
+## Operarla en la casa
+
+- **Que la PC no entre en reposo**: en reposo (suspensión/hibernación) el
+  servidor no se apaga, se pausa, pero mientras tanto Lumina no ve, no escucha
+  ni avisa de nada. Windows: *Configuración → Sistema → Inicio/apagado y
+  suspensión → Suspensión: Nunca*. Apagar solo la pantalla no detiene nada
+  (aunque no se vea la cara).
+- **Al despertar la PC**: si el video de la cámara se congela, "apaga la
+  cámara" y "enciende la cámara"; si Lumina no escucha, recarga la página.
+- **Si la PC se apaga o reinicia**: hay que volver a correr `python server.py`
+  (y `n8n start`).
+- **Corre el servidor en su propia terminal**, no como proceso en segundo plano
+  de Claude Code: Claude Code lo apaga si falta memoria o si cierras su sesión.
+
 ## Límites reales (no los prometas de más)
 
 - Las expresiones son estados visuales predefinidos, no emociones de un modelo.

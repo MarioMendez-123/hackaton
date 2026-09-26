@@ -100,6 +100,9 @@ El repo es **público**: nunca subir teléfonos, correos, URLs secretas ni token
 - Web Speech (reconocimiento) solo en Chrome/Edge, con internet, en
   `localhost` o HTTPS, y con permiso de micrófono.
 - La URL iCal de Google tarda minutos en reflejar eventos nuevos.
+- En reposo de la PC el servidor se pausa (no se apaga); al despertar la webcam
+  puede quedar congelada (apagar/encender la cámara) y el reconocimiento de
+  voz puede detenerse (recargar la página). Para el uso real: sin reposo.
 
 ## Pendiente / siguientes pasos
 
