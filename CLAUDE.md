@@ -5,10 +5,15 @@ dos vistas: **la cara de Lumina** (voz, subtítulos, reloj) y **la consola de la
 casa** (cámara, plano, bitácora, agenda). Corre en una pantalla física de la
 casa. Todo el texto de interfaz y de voz está en **español de México**.
 
-Principios del documento maestro (`SUPER_ALEXA_INNOVATHON_2026.md`, fuera del
-repo): pipeline `PERCEPCIÓN → EVENTOS → CONTEXTO → SITUACIÓN → DECISIÓN →
+Principios del documento maestro (`docs/SUPER_ALEXA_INNOVATHON_2026.md`): pipeline `PERCEPCIÓN → EVENTOS → CONTEXTO → SITUACIÓN → DECISIÓN →
 ACCIÓN`; **la IA interpreta, las reglas deciden, n8n ejecuta**; **nunca
 inventar un estado** (lo desconocido se dice "Sin verificar").
+
+**Empieza por `PLAN_MAESTRO.md`**: diferenciador, qué está hecho, la
+Raspberry Pi con 4 cámaras (nodo de visión), todas las comunicaciones y los
+pasos de ElevenLabs, Zavu, n8n, AWS y Clerk. **Diferenciador:** "Ellos vigilan
+a un paciente; Lumina entiende la casa, actúa por ti (relés/ESP32) y te acompaña
+fuera (WhatsApp + Ray-Ban Meta)". No posicionar como cuidado de pacientes.
 
 ## Arrancar y probar
 
